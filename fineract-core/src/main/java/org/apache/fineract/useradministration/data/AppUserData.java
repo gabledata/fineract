@@ -37,7 +37,7 @@ public final class AppUserData {
     private final String username;
     private final Long officeId;
     private final String officeName;
-    private final String firstname;
+    private final String givenName;
     private final String lastname;
     private final String email;
     private final Boolean passwordNeverExpires;
@@ -59,19 +59,19 @@ public final class AppUserData {
     @SuppressWarnings("unused")
     private Set<ClientData> clients;
 
-    public static AppUserData importInstance(Long officeId, Long staffId, String username, String firstname, String lastname, String email,
+    public static AppUserData importInstance(Long officeId, Long staffId, String username, String givenName, String lastname, String email,
             Boolean sendPasswordToEmail, Boolean passwordNeverExpires, List<Long> roleIds, Integer rowIndex) {
-        return new AppUserData(officeId, staffId, username, firstname, lastname, email, sendPasswordToEmail, passwordNeverExpires, roleIds,
+        return new AppUserData(officeId, staffId, username, givenName, lastname, email, sendPasswordToEmail, passwordNeverExpires, roleIds,
                 rowIndex);
     }
 
-    private AppUserData(Long officeId, Long staffId, String username, String firstname, String lastname, String email,
+    private AppUserData(Long officeId, Long staffId, String username, String givenName, String lastname, String email,
             Boolean sendPasswordToEmail, Boolean passwordNeverExpires, List<Long> roleIds, Integer rowIndex) {
         this.id = null;
         this.username = username;
         this.officeId = officeId;
         this.officeName = null;
-        this.firstname = firstname;
+        this.givenName = givenName;
         this.lastname = lastname;
         this.email = email;
         this.passwordNeverExpires = passwordNeverExpires;
@@ -87,7 +87,7 @@ public final class AppUserData {
     }
 
     public static AppUserData template(final AppUserData user, final Collection<OfficeData> officesForDropdown) {
-        return new AppUserData(user.id, user.username, user.email, user.officeId, user.officeName, user.firstname, user.lastname,
+        return new AppUserData(user.id, user.username, user.email, user.officeId, user.officeName, user.givenName, user.lastname,
                 user.availableRoles, user.selectedRoles, officesForDropdown, user.staff, user.passwordNeverExpires);
     }
 
@@ -100,21 +100,21 @@ public final class AppUserData {
     }
 
     public static AppUserData instance(final Long id, final String username, final String email, final Long officeId,
-            final String officeName, final String firstname, final String lastname, final Collection<RoleData> availableRoles,
+            final String officeName, final String givenName, final String lastname, final Collection<RoleData> availableRoles,
             final Collection<RoleData> selectedRoles, final StaffData staff, final Boolean passwordNeverExpire) {
-        return new AppUserData(id, username, email, officeId, officeName, firstname, lastname, availableRoles, selectedRoles, null, staff,
+        return new AppUserData(id, username, email, officeId, officeName, givenName, lastname, availableRoles, selectedRoles, null, staff,
                 passwordNeverExpire);
     }
 
     private AppUserData(final Long id, final String username, final String email, final Long officeId, final String officeName,
-            final String firstname, final String lastname, final Collection<RoleData> availableRoles,
+            final String givenName, final String lastname, final Collection<RoleData> availableRoles,
             final Collection<RoleData> selectedRoles, final Collection<OfficeData> allowedOffices, final StaffData staff,
             final Boolean passwordNeverExpire) {
         this.id = id;
         this.username = username;
         this.officeId = officeId;
         this.officeName = officeName;
-        this.firstname = firstname;
+        this.givenName = givenName;
         this.lastname = lastname;
         this.email = email;
         this.allowedOffices = allowedOffices;
