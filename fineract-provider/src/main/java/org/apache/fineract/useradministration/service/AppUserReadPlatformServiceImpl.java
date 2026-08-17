@@ -120,7 +120,8 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
         }
 
         AppUserData retUser = AppUserData.instance(user.getId(), user.getUsername(), user.getEmail(), user.getOffice().getId(),
-                user.getOffice().getName(), user.getFirstname(), user.getLastname(), availableRoles, selectedUserRoles, linkedStaff);
+                user.getOffice().getName(), user.getFirstname(), user.getLastname(), availableRoles, selectedUserRoles, linkedStaff,
+                user.getPasswordNeverExpires(), null);
 
         return retUser;
     }
@@ -146,6 +147,7 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
             final Long officeId = JdbcSupport.getLong(rs, "officeId");
             final String officeName = rs.getString("officeName");
             final Long staffId = JdbcSupport.getLong(rs, "staffId");
+            final Boolean passwordNeverExpire = rs.getBoolean("passwordNeverExpires");
             final Collection<RoleData> selectedRoles = this.roleReadPlatformService.retrieveAppUserRoles(id);
 
             final StaffData linkedStaff;
@@ -154,7 +156,8 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
             } else {
                 linkedStaff = null;
             }
-            return AppUserData.instance(id, username, email, officeId, officeName, firstname, lastname, null, selectedRoles, linkedStaff);
+            return AppUserData.instance(id, username, email, officeId, officeName, firstname, lastname, null, selectedRoles, linkedStaff,
+                    passwordNeverExpire, null);
         }
 
         public String schema() {

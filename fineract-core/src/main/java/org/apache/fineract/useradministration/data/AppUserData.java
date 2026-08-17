@@ -40,6 +40,8 @@ public final class AppUserData {
     private final String firstname;
     private final String lastname;
     private final String email;
+    private final Boolean passwordNeverExpires;
+    private final String mobileNumber;
 
     // import fields
     private List<Long> roles;
@@ -59,12 +61,13 @@ public final class AppUserData {
     private Set<ClientData> clients;
 
     public static AppUserData importInstance(Long officeId, Long staffId, String username, String firstname, String lastname, String email,
-            Boolean sendPasswordToEmail, List<Long> roleIds, Integer rowIndex) {
-        return new AppUserData(officeId, staffId, username, firstname, lastname, email, sendPasswordToEmail, roleIds, rowIndex);
+            Boolean sendPasswordToEmail, Boolean passwordNeverExpires, List<Long> roleIds, Integer rowIndex) {
+        return new AppUserData(officeId, staffId, username, firstname, lastname, email, sendPasswordToEmail, passwordNeverExpires, roleIds,
+                rowIndex);
     }
 
     private AppUserData(Long officeId, Long staffId, String username, String firstname, String lastname, String email,
-            Boolean sendPasswordToEmail, List<Long> roleIds, Integer rowIndex) {
+            Boolean sendPasswordToEmail, Boolean passwordNeverExpires, List<Long> roleIds, Integer rowIndex) {
         this.id = null;
         this.username = username;
         this.officeId = officeId;
@@ -72,6 +75,7 @@ public final class AppUserData {
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
+        this.passwordNeverExpires = passwordNeverExpires;
         this.roles = roleIds;
         this.sendPasswordToEmail = sendPasswordToEmail;
         this.staffId = staffId;
@@ -81,30 +85,33 @@ public final class AppUserData {
         this.selectedRoles = null;
         this.staff = null;
         this.clients = null;
+        this.mobileNumber = null;
     }
 
     public static AppUserData template(final AppUserData user, final Collection<OfficeData> officesForDropdown) {
         return new AppUserData(user.id, user.username, user.email, user.officeId, user.officeName, user.firstname, user.lastname,
-                user.availableRoles, user.selectedRoles, officesForDropdown, user.staff);
+                user.availableRoles, user.selectedRoles, officesForDropdown, user.staff, user.passwordNeverExpires, user.mobileNumber);
     }
 
     public static AppUserData template(final Collection<OfficeData> offices, final Collection<RoleData> availableRoles) {
-        return new AppUserData(null, null, null, null, null, null, null, availableRoles, null, offices, null);
+        return new AppUserData(null, null, null, null, null, null, null, availableRoles, null, offices, null, null, null);
     }
 
     public static AppUserData dropdown(final Long id, final String username) {
-        return new AppUserData(id, username, null, null, null, null, null, null, null, null, null);
+        return new AppUserData(id, username, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public static AppUserData instance(final Long id, final String username, final String email, final Long officeId,
             final String officeName, final String firstname, final String lastname, final Collection<RoleData> availableRoles,
-            final Collection<RoleData> selectedRoles, final StaffData staff) {
-        return new AppUserData(id, username, email, officeId, officeName, firstname, lastname, availableRoles, selectedRoles, null, staff);
+            final Collection<RoleData> selectedRoles, final StaffData staff, final Boolean passwordNeverExpire, final String mobileNumber) {
+        return new AppUserData(id, username, email, officeId, officeName, firstname, lastname, availableRoles, selectedRoles, null, staff,
+                passwordNeverExpire, mobileNumber);
     }
 
     private AppUserData(final Long id, final String username, final String email, final Long officeId, final String officeName,
             final String firstname, final String lastname, final Collection<RoleData> availableRoles,
-            final Collection<RoleData> selectedRoles, final Collection<OfficeData> allowedOffices, final StaffData staff) {
+            final Collection<RoleData> selectedRoles, final Collection<OfficeData> allowedOffices, final StaffData staff,
+            final Boolean passwordNeverExpire, final String mobileNumber) {
         this.id = id;
         this.username = username;
         this.officeId = officeId;
@@ -116,6 +123,8 @@ public final class AppUserData {
         this.availableRoles = availableRoles;
         this.selectedRoles = selectedRoles;
         this.staff = staff;
+        this.passwordNeverExpires = passwordNeverExpire;
+        this.mobileNumber = mobileNumber;
     }
 
     public boolean hasIdentifyOf(final Long createdById) {

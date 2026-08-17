@@ -85,6 +85,7 @@ public class UserImportHandler implements ImportHandler {
         String lastName = ImportHandlerUtils.readAsString(UserConstants.LAST_NAME_COL, row);
         String email = ImportHandlerUtils.readAsString(UserConstants.EMAIL_COL, row);
         Boolean autoGenPw = ImportHandlerUtils.readAsBoolean(UserConstants.AUTO_GEN_PW_COL, row);
+        Boolean overridepw = ImportHandlerUtils.readAsBoolean(UserConstants.OVERRIDE_PW_EXPIRY_POLICY_COL, row);
         String status = ImportHandlerUtils.readAsString(UserConstants.STATUS_COL, row);
         statuses.add(status);
 
@@ -99,7 +100,8 @@ public class UserImportHandler implements ImportHandler {
                 rolesIds.add(roleId);
             }
         }
-        return AppUserData.importInstance(officeId, staffId, userName, firstName, lastName, email, autoGenPw, rolesIds, row.getRowNum());
+        return AppUserData.importInstance(officeId, staffId, userName, firstName, lastName, email, autoGenPw, overridepw, rolesIds,
+                row.getRowNum());
 
     }
 
