@@ -121,7 +121,7 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
 
         AppUserData retUser = AppUserData.instance(user.getId(), user.getUsername(), user.getEmail(), user.getOffice().getId(),
                 user.getOffice().getName(), user.getFirstname(), user.getLastname(), availableRoles, selectedUserRoles, linkedStaff,
-                user.getPasswordNeverExpires(), null);
+                user.getPasswordNeverExpires());
 
         return retUser;
     }
@@ -157,7 +157,7 @@ public class AppUserReadPlatformServiceImpl implements AppUserReadPlatformServic
                 linkedStaff = null;
             }
             return AppUserData.instance(id, username, email, officeId, officeName, firstname, lastname, null, selectedRoles, linkedStaff,
-                    passwordNeverExpire, null);
+                    passwordNeverExpire);
         }
 
         public String schema() {
