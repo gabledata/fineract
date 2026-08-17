@@ -18,7 +18,6 @@
  */
 package org.apache.fineract.useradministration.data;
 
-import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -37,12 +36,11 @@ public final class AppUserData {
     private final Long id;
     private final String username;
     private final Long officeId;
-    private final String officeName;
+    private final String homeAddress;
     private final String firstname;
     private final String lastname;
     private final String email;
     private final Boolean passwordNeverExpires;
-    private final LocalDate lastLoginDate;
 
     // import fields
     private List<Long> roles;
@@ -72,7 +70,7 @@ public final class AppUserData {
         this.id = null;
         this.username = username;
         this.officeId = officeId;
-        this.officeName = null;
+        this.homeAddress = null;
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
@@ -86,38 +84,36 @@ public final class AppUserData {
         this.selectedRoles = null;
         this.staff = null;
         this.clients = null;
-        this.lastLoginDate = null;
     }
 
     public static AppUserData template(final AppUserData user, final Collection<OfficeData> officesForDropdown) {
-        return new AppUserData(user.id, user.username, user.email, user.officeId, user.officeName, user.firstname, user.lastname,
-                user.availableRoles, user.selectedRoles, officesForDropdown, user.staff, user.passwordNeverExpires, user.lastLoginDate);
+        return new AppUserData(user.id, user.username, user.email, user.officeId, user.homeAddress, user.firstname, user.lastname,
+                user.availableRoles, user.selectedRoles, officesForDropdown, user.staff, user.passwordNeverExpires);
     }
 
     public static AppUserData template(final Collection<OfficeData> offices, final Collection<RoleData> availableRoles) {
-        return new AppUserData(null, null, null, null, null, null, null, availableRoles, null, offices, null, null, null);
+        return new AppUserData(null, null, null, null, null, null, null, availableRoles, null, offices, null, null);
     }
 
     public static AppUserData dropdown(final Long id, final String username) {
-        return new AppUserData(id, username, null, null, null, null, null, null, null, null, null, null, null);
+        return new AppUserData(id, username, null, null, null, null, null, null, null, null, null, null);
     }
 
     public static AppUserData instance(final Long id, final String username, final String email, final Long officeId,
-            final String officeName, final String firstname, final String lastname, final Collection<RoleData> availableRoles,
-            final Collection<RoleData> selectedRoles, final StaffData staff, final Boolean passwordNeverExpire,
-            final LocalDate lastLoginDate) {
-        return new AppUserData(id, username, email, officeId, officeName, firstname, lastname, availableRoles, selectedRoles, null, staff,
-                passwordNeverExpire, lastLoginDate);
+            final String homeAddress, final String firstname, final String lastname, final Collection<RoleData> availableRoles,
+            final Collection<RoleData> selectedRoles, final StaffData staff, final Boolean passwordNeverExpire) {
+        return new AppUserData(id, username, email, officeId, homeAddress, firstname, lastname, availableRoles, selectedRoles, null, staff,
+                passwordNeverExpire);
     }
 
-    private AppUserData(final Long id, final String username, final String email, final Long officeId, final String officeName,
+    private AppUserData(final Long id, final String username, final String email, final Long officeId, final String homeAddress,
             final String firstname, final String lastname, final Collection<RoleData> availableRoles,
             final Collection<RoleData> selectedRoles, final Collection<OfficeData> allowedOffices, final StaffData staff,
-            final Boolean passwordNeverExpire, final LocalDate lastLoginDate) {
+            final Boolean passwordNeverExpire) {
         this.id = id;
         this.username = username;
         this.officeId = officeId;
-        this.officeName = officeName;
+        this.homeAddress = homeAddress;
         this.firstname = firstname;
         this.lastname = lastname;
         this.email = email;
@@ -126,7 +122,6 @@ public final class AppUserData {
         this.selectedRoles = selectedRoles;
         this.staff = staff;
         this.passwordNeverExpires = passwordNeverExpire;
-        this.lastLoginDate = lastLoginDate;
     }
 
     public boolean hasIdentifyOf(final Long createdById) {
