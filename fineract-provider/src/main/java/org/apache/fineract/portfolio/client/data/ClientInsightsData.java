@@ -30,6 +30,7 @@ public class ClientInsightsData {
 
     private final Long clientId;
     private final String accountNo;
+    private final String displayName;
     private final String model;
     private final String summary;
 }

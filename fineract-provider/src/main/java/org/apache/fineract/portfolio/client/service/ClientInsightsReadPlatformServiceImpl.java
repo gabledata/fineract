@@ -79,7 +79,7 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
                 .flatMap(choice -> choice.message().content().stream()) //
                 .collect(Collectors.joining("\n"));
 
-        return new ClientInsightsData(client.getId(), client.getAccountNo(), openAi.getModel(), summary);
+        return new ClientInsightsData(client.getId(), client.getAccountNo(), client.getDisplayName(), openAi.getModel(), summary);
     }
 
     private ClientContextData retrieveClientContext(final Long clientId) {
@@ -93,11 +93,16 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
 
     private String buildPrompt(final ClientContextData client, final String focus) {
         final String profile = String.format("Client profile:%n" //
+                + "- Name: %s%n" //
                 + "- Account number: %s%n" //
                 + "- External id: %s%n" //
+                + "- Mobile number: %s%n" //
+                + "- Email address: %s%n" //
+                + "- Date of birth: %s%n" //
                 + "- Client since: %s%n" //
                 + "- Office: %s%n", //
-                client.getAccountNo(), client.getExternalId(), client.getActivationDate(), client.getOfficeName());
+                client.getDisplayName(), client.getAccountNo(), client.getExternalId(), client.getMobileNo(), client.getEmailAddress(),
+                client.getDateOfBirth(), client.getActivationDate(), client.getOfficeName());
         if (StringUtils.isBlank(focus)) {
             return profile + "Summarize this client for a loan officer in at most three sentences.";
         }
@@ -107,7 +112,8 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
     private static final class ClientContextMapper implements RowMapper<ClientContextData> {
 
         private static final String SCHEMA = "c.id as id, c.account_no as accountNo, c.external_id as externalId, "
-                + "c.activation_date as activationDate, o.name as officeName " //
+                + "c.display_name as displayName, c.mobile_no as mobileNo, c.email_address as emailAddress, "
+                + "c.date_of_birth as dateOfBirth, c.activation_date as activationDate, o.name as officeName "
                 + "from m_client c join m_office o on o.id = c.office_id";
 
         public String schema() {
@@ -119,9 +125,14 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
             final Long id = JdbcSupport.getLong(rs, "id");
             final String accountNo = rs.getString("accountNo");
             final String externalId = rs.getString("externalId");
+            final String displayName = rs.getString("displayName");
+            final String mobileNo = rs.getString("mobileNo");
+            final String emailAddress = rs.getString("emailAddress");
+            final LocalDate dateOfBirth = JdbcSupport.getLocalDate(rs, "dateOfBirth");
             final LocalDate activationDate = JdbcSupport.getLocalDate(rs, "activationDate");
             final String officeName = rs.getString("officeName");
-            return new ClientContextData(id, accountNo, externalId, activationDate, officeName);
+            return new ClientContextData(id, accountNo, externalId, displayName, mobileNo, emailAddress, dateOfBirth, activationDate,
+                    officeName);
         }
     }
 }
