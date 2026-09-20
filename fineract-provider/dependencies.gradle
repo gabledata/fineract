@@ -123,6 +123,8 @@ dependencies {
 
             'io.github.resilience4j:resilience4j-spring-boot3',
             'org.reflections:reflections',
+
+            'com.openai:openai-java',
             )
 
     implementation 'software.amazon.msk:aws-msk-iam-auth'

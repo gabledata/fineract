@@ -84,6 +84,8 @@ public class FineractProperties {
 
     private FineractSamplingProperties sampling;
 
+    private FineractAiProperties ai;
+
     private FineractModulesProperties module;
 
     private FineractSqlValidationProperties sqlValidation;
@@ -633,6 +635,23 @@ public class FineractProperties {
     public static class FineractTransactionProcessorItemProperties {
 
         private boolean enabled;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractAiProperties {
+
+        private FineractOpenAiProperties openai;
+    }
+
+    @Getter
+    @Setter
+    public static class FineractOpenAiProperties {
+
+        private Boolean enabled;
+        private String apiKey;
+        private String baseUrl;
+        private String model;
     }
 
     @Getter

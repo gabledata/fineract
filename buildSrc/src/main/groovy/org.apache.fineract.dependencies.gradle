@@ -53,6 +53,7 @@ dependencyManagement {
         dependency 'org.eclipse.persistence:org.eclipse.persistence.jpa:4.0.9'
         dependency 'com.google.guava:guava:33.6.0-jre'
         dependency 'com.google.code.gson:gson:2.14.0'
+        dependency 'com.openai:openai-java:4.63.3'
         dependency 'com.google.googlejavaformat:google-java-format:1.35.0'
         dependency 'org.apache.commons:commons-collections4:4.5.0'
         dependency 'org.apache.commons:commons-compress:1.28.0'
