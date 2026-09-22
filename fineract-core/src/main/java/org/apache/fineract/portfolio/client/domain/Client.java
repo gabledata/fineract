@@ -39,6 +39,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.fineract.infrastructure.codes.domain.CodeValue;
+import org.apache.fineract.infrastructure.core.annotation.PersonalData;
+import org.apache.fineract.infrastructure.core.annotation.PersonalData.Category;
 import org.apache.fineract.infrastructure.core.data.ApiParameterError;
 import org.apache.fineract.infrastructure.core.data.DataValidatorBuilder;
 import org.apache.fineract.infrastructure.core.domain.AbstractAuditableWithUTCDateTimeCustom;
@@ -59,6 +61,8 @@ import org.apache.fineract.useradministration.domain.AppUser;
         @UniqueConstraint(columnNames = { "mobile_no" }, name = "mobile_no_UNIQUE") })
 public class Client extends AbstractAuditableWithUTCDateTimeCustom<Long> {
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = { "customer-identification",
+            "account-servicing" }, lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "account_no", length = 20, unique = true, nullable = false)
     private String accountNumber;
 
@@ -86,36 +90,49 @@ public class Client extends AbstractAuditableWithUTCDateTimeCustom<Long> {
     @Column(name = "office_joining_date")
     private LocalDate officeJoiningDate;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = "customer-identification", lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "firstname", length = 50)
     private String firstname;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = "customer-identification", lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "middlename", length = 50)
     private String middlename;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = "customer-identification", lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "lastname", length = 50)
     private String lastname;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = "customer-identification", lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "fullname", length = 160)
     private String fullname;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = { "customer-identification",
+            "account-servicing" }, lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "display_name", length = 160, nullable = false)
     private String displayName;
 
+    @PersonalData(category = Category.CONTACT, purposes = "customer-communication", lawfulBasisPolicy = "controller-policy:client-communications", retentionPolicy = "controller-policy:client-records")
     @Column(name = "mobile_no", length = 50, unique = true)
     private String mobileNo;
 
+    @PersonalData(category = Category.CONTACT, purposes = "customer-communication", lawfulBasisPolicy = "controller-policy:client-communications", retentionPolicy = "controller-policy:client-records")
     @Column(name = "email_address", length = 254, unique = true)
     private String emailAddress;
 
     @Column(name = "is_staff", nullable = false)
     private boolean isStaff;
 
+    @PersonalData(category = Category.IDENTIFIER, purposes = { "customer-identification",
+            "regulatory-compliance" }, lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "external_id", length = 100, unique = true)
     private ExternalId externalId;
 
+    @PersonalData(category = Category.BIOGRAPHICAL, purposes = { "customer-identification",
+            "regulatory-compliance" }, lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
 
+    @PersonalData(category = Category.DEMOGRAPHIC, purposes = "regulatory-compliance", lawfulBasisPolicy = "controller-policy:client-records", retentionPolicy = "controller-policy:client-records")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gender_cv_id")
     private CodeValue gender;
