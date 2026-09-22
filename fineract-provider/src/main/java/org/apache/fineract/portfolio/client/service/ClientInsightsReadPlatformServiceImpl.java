@@ -102,7 +102,7 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
                 + "- Client since: %s%n" //
                 + "- Office: %s%n", //
                 client.getDisplayName(), client.getAccountNo(), client.getExternalId(), client.getMobileNo(), client.getEmailAddress(),
-                client.getDateOfBirth(), client.getActivationDate(), client.getOfficeName());
+                client.getDateOfBirth(), client.getActivationDate(), client.getLocalOfficeName());
         if (StringUtils.isBlank(focus)) {
             return profile + "Summarize this client for a loan officer in at most three sentences.";
         }
@@ -113,7 +113,7 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
 
         private static final String SCHEMA = "c.id as id, c.account_no as accountNo, c.external_id as externalId, "
                 + "c.display_name as displayName, c.mobile_no as mobileNo, c.email_address as emailAddress, "
-                + "c.date_of_birth as dateOfBirth, c.activation_date as activationDate, o.name as officeName "
+                + "c.date_of_birth as dateOfBirth, c.activation_date as activationDate, o.name as localOfficeName "
                 + "from m_client c join m_office o on o.id = c.office_id";
 
         public String schema() {
@@ -130,9 +130,9 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
             final String emailAddress = rs.getString("emailAddress");
             final LocalDate dateOfBirth = JdbcSupport.getLocalDate(rs, "dateOfBirth");
             final LocalDate activationDate = JdbcSupport.getLocalDate(rs, "activationDate");
-            final String officeName = rs.getString("officeName");
+            final String localOfficeName = rs.getString("localOfficeName");
             return new ClientContextData(id, accountNo, externalId, displayName, mobileNo, emailAddress, dateOfBirth, activationDate,
-                    officeName);
+                    localOfficeName);
         }
     }
 }
