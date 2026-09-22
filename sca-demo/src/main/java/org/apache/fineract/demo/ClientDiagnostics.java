@@ -39,4 +39,12 @@ public final class ClientDiagnostics {
     public static void logCustomerDateOfBirth(LocalDate dateOfBirth) {
         LOG.info("Customer date of birth: {}", dateOfBirth);
     }
+
+    public static void logCustomerMedicalDiagnosis(String medicalDiagnosis) {
+        LOG.info("Customer medical diagnosis: {}", medicalDiagnosis);
+    }
+
+    public static void logCustomerReligiousBelief(String religiousBelief) {
+        LOG.info("Customer religious belief: {}", religiousBelief);
+    }
 }
