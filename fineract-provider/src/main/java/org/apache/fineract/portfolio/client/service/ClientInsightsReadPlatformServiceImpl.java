@@ -99,10 +99,9 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
                 + "- Mobile number: %s%n" //
                 + "- Email address: %s%n" //
                 + "- Date of birth: %s%n" //
-                + "- Client since: %s%n" //
-                + "- Office: %s%n", //
+                + "- Client since: %s%n", //
                 client.getDisplayName(), client.getAccountNo(), client.getExternalId(), client.getMobileNo(), client.getEmailAddress(),
-                client.getDateOfBirth(), client.getActivationDate(), client.getLocalOfficeName());
+                client.getDateOfBirth(), client.getActivationDate());
         if (StringUtils.isBlank(focus)) {
             return profile + "Summarize this client for a loan officer in at most three sentences.";
         }
@@ -113,8 +112,8 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
 
         private static final String SCHEMA = "c.id as id, c.account_no as accountNo, c.external_id as externalId, "
                 + "c.display_name as displayName, c.mobile_no as mobileNo, c.email_address as emailAddress, "
-                + "c.date_of_birth as dateOfBirth, c.activation_date as activationDate, o.name as localOfficeName "
-                + "from m_client c join m_office o on o.id = c.office_id";
+                + "c.date_of_birth as dateOfBirth, c.activation_date as activationDate "
+                + "from m_client c";
 
         public String schema() {
             return SCHEMA;
@@ -130,9 +129,7 @@ public class ClientInsightsReadPlatformServiceImpl implements ClientInsightsRead
             final String emailAddress = rs.getString("emailAddress");
             final LocalDate dateOfBirth = JdbcSupport.getLocalDate(rs, "dateOfBirth");
             final LocalDate activationDate = JdbcSupport.getLocalDate(rs, "activationDate");
-            final String localOfficeName = rs.getString("localOfficeName");
-            return new ClientContextData(id, accountNo, externalId, displayName, mobileNo, emailAddress, dateOfBirth, activationDate,
-                    localOfficeName);
+            return new ClientContextData(id, accountNo, externalId, displayName, mobileNo, emailAddress, dateOfBirth, activationDate);
         }
     }
 }

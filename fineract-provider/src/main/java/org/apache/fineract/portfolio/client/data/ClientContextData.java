@@ -37,5 +37,4 @@ public class ClientContextData {
     private final String emailAddress;
     private final LocalDate dateOfBirth;
     private final LocalDate activationDate;
-    private final String localOfficeName;
 }
