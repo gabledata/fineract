@@ -32,7 +32,7 @@ public class ClientContextData {
     private final Long id;
     private final String accountNo;
     private final String externalId;
-    private final String displayName;
+    private final String userName;
     private final String mobileNo;
     private final String emailAddress;
     private final LocalDate dateOfBirth;
