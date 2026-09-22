@@ -23,20 +23,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Intentionally vulnerable static-analysis fixture. This source tree is not part of any Gradle module and must never
+ * Client diagnostic logging example. This source tree is not part of any Gradle module and must never
  * be packaged or called by the application.
  */
-public final class GdprViolationDemo {
+public final class ClientDiagnostics {
 
-    private static final Logger LOG = LoggerFactory.getLogger(GdprViolationDemo.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ClientDiagnostics.class);
 
-    private GdprViolationDemo() {}
+    private ClientDiagnostics() {}
 
     public static void logCustomerEmail(String email) {
-        LOG.info("GDPR demo customer email: {}", email);
+        LOG.info("Customer email: {}", email);
     }
 
     public static void logCustomerDateOfBirth(LocalDate dateOfBirth) {
-        LOG.info("GDPR demo customer date of birth: {}", dateOfBirth);
+        LOG.info("Customer date of birth: {}", dateOfBirth);
     }
 }
