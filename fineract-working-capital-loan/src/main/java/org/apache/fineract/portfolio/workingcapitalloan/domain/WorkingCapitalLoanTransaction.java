@@ -217,14 +217,18 @@ public class WorkingCapitalLoanTransaction extends AbstractAuditableWithUTCDateT
 
     /**
      * Charge-off is a terminal, non-monetary transaction: it records the charged-off amount (the outstanding balance as
-     * of the charge-off date) but does not move the running balance, and it is excluded from replay (not a repayment
-     * type). The loan stays ACTIVE.
+     * of the charge-off date) but does not move the running balance. Reprocessing walks it to refresh that snapshot (or
+     * reverse and lift it when outstanding is already zero). The loan stays ACTIVE.
      */
     public static WorkingCapitalLoanTransaction chargeOff(final WorkingCapitalLoan loan, final BigDecimal amount,
             final LocalDate transactionDate, final ExternalId externalId) {
         final WorkingCapitalLoanTransaction txn = new WorkingCapitalLoanTransaction();
         txn.initialize(loan, LoanTransactionType.CHARGE_OFF, transactionDate, amount, null, null, externalId);
         return txn;
+    }
+
+    public void updateAmount(final BigDecimal amount) {
+        this.transactionAmount = amount != null ? amount : BigDecimal.ZERO;
     }
 
     public static WorkingCapitalLoanTransaction chargeAdjustment(final WorkingCapitalLoan loan, final ExternalId externalId,
@@ -239,6 +243,25 @@ public class WorkingCapitalLoanTransaction extends AbstractAuditableWithUTCDateT
         final WorkingCapitalLoanTransaction transaction = new WorkingCapitalLoanTransaction();
         transaction.initialize(loan, LoanTransactionType.ACCRUAL, transactionDate, amount, null, null, externalId);
         return transaction;
+    }
+
+    public static WorkingCapitalLoanTransaction writeOff(final WorkingCapitalLoan loan, final BigDecimal amount,
+            final LocalDate transactionDate, final ExternalId externalId) {
+        final WorkingCapitalLoanTransaction txn = new WorkingCapitalLoanTransaction();
+        txn.initialize(loan, LoanTransactionType.WRITEOFF, transactionDate, amount, null, null, externalId);
+        return txn;
+    }
+
+    /**
+     * A recovery payment collects money on a loan that was already written off. It carries no allocation: the balance
+     * was zeroed by the write-off and stays that way, so the amount is recognized as recovery income rather than
+     * applied against principal, fees or penalties. The loan keeps its {@code CLOSED_WRITTEN_OFF} status.
+     */
+    public static WorkingCapitalLoanTransaction recoveryPayment(final WorkingCapitalLoan loan, final BigDecimal amount,
+            final PaymentDetail paymentDetail, final LocalDate transactionDate, final ExternalId externalId) {
+        final WorkingCapitalLoanTransaction txn = new WorkingCapitalLoanTransaction();
+        txn.initialize(loan, LoanTransactionType.RECOVERY_REPAYMENT, transactionDate, amount, paymentDetail, null, externalId);
+        return txn;
     }
 
     private void initialize(final WorkingCapitalLoan loan, final LoanTransactionType transactionType, final LocalDate transactionDate,

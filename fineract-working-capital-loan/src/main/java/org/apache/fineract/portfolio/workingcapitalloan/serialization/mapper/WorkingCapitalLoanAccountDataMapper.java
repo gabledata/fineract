@@ -21,6 +21,7 @@ package org.apache.fineract.portfolio.workingcapitalloan.serialization.mapper;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Optional;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanAccountDataV1;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanBreachSchedulePeriodDataV1;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanChargeDataV1;
@@ -28,7 +29,9 @@ import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanCollecti
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanDelinquencySchedulePeriodDataV1;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanDelinquencyScheduleTagDataV1;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanDisbursementDetailDataV1;
+import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanPeriodPaymentRateChangeDataV1;
 import org.apache.fineract.avro.workingcapitalloan.v1.WorkingCapitalLoanSummaryDataV1;
+import org.apache.fineract.infrastructure.core.service.MathUtil;
 import org.apache.fineract.infrastructure.event.external.service.serialization.mapper.support.AvroMapperConfig;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanBreachScheduleData;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanChargeData;
@@ -36,6 +39,7 @@ import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanC
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanData;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanDelinquencyRangeScheduleData;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanDisbursementDetailData;
+import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanPeriodPaymentRateChangeData;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanRangeScheduleDelinquencyData;
 import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanSummaryData;
 import org.mapstruct.Mapper;
@@ -49,7 +53,6 @@ public interface WorkingCapitalLoanAccountDataMapper {
 
     @Mapping(source = "delinquencyGraceDays", target = "graceOnArrearsAgeing")
     @Mapping(source = "summary.overpayment", target = "totalOverpaid")
-    @Mapping(source = "dailyEir", target = "dailyEir", qualifiedByName = "toAvroDecimalScale")
     @Mapping(source = "calculatedAnnualEir", target = "calculatedAnnualEir", qualifiedByName = "toAvroDecimalScale")
     @Mapping(source = "numberOfRepayments", target = "actualNoTerm")
     @Mapping(source = "delinquencyStartType", target = "delinquency.delinquencyStartType")
@@ -64,9 +67,16 @@ public interface WorkingCapitalLoanAccountDataMapper {
     @Mapping(source = "breachStartDate", target = "breach.breachStartDate")
     @Mapping(source = "nearBreach", target = "breach.nearBreach")
     @Mapping(target = "breach.breachSchedule", ignore = true)
-    @Mapping(target = "overpaidOnDate", ignore = true)
+    @Mapping(target = "breach.breachPastDueAmount", ignore = true)
+    @Mapping(target = "overpaidOnDate", source = "overpaidOnDate")
     @Mapping(target = "customData", ignore = true)
     WorkingCapitalLoanAccountDataV1 map(WorkingCapitalLoanData source);
+
+    @Mapping(source = "calculatedAnnualEir", target = "calculatedAnnualEir", qualifiedByName = "toAvroDecimalScale")
+    WorkingCapitalLoanPeriodPaymentRateChangeDataV1 map(WorkingCapitalLoanPeriodPaymentRateChangeData source);
+
+    List<WorkingCapitalLoanPeriodPaymentRateChangeDataV1> mapPeriodPaymentRateHistory(
+            List<WorkingCapitalLoanPeriodPaymentRateChangeData> source);
 
     @Mapping(source = "principal", target = "totalPrincipal")
     @Mapping(source = "totalDisbursement", target = "principalDisbursed")
@@ -76,6 +86,7 @@ public interface WorkingCapitalLoanAccountDataMapper {
     @Mapping(source = "penalty", target = "penaltyChargesCharged")
     @Mapping(source = "penaltyPaid", target = "penaltyChargesPaid")
     @Mapping(source = "penaltyOutstanding", target = "penaltyChargesOutstanding")
+    @Mapping(target = "totalChargeAmount", source = ".", qualifiedByName = "toTotalChargeAmount")
     @Mapping(source = "principalAdjustment", target = "principalAdjustments")
     @Mapping(target = "principalWrittenOff", ignore = true)
     @Mapping(target = "feeChargesWrittenOff", ignore = true)
@@ -96,13 +107,11 @@ public interface WorkingCapitalLoanAccountDataMapper {
     @Mapping(target = "totalCreditBalanceRefundReversed", ignore = true)
     @Mapping(target = "totalRepaymentTransaction", ignore = true)
     @Mapping(target = "totalRepaymentTransactionReversed", ignore = true)
+    @Mapping(target = "totalPayment", ignore = true)
+    @Mapping(target = "totalPaymentReversed", ignore = true)
     WorkingCapitalLoanSummaryDataV1 map(WorkingCapitalLoanSummaryData source);
 
     @Mapping(source = "delinquentPrincipal", target = "totalDelinquentAmount")
-    @Mapping(target = "lastPaymentDate", ignore = true)
-    @Mapping(target = "lastPaymentAmount", ignore = true)
-    @Mapping(target = "lastRepaymentDate", ignore = true)
-    @Mapping(target = "lastRepaymentAmount", ignore = true)
     @Mapping(target = "delinquencySchedule", ignore = true)
     WorkingCapitalLoanCollectionDataV1 map(WorkingCapitalLoanCollectionData source);
 
@@ -126,6 +135,12 @@ public interface WorkingCapitalLoanAccountDataMapper {
     WorkingCapitalLoanBreachSchedulePeriodDataV1 map(WorkingCapitalLoanBreachScheduleData source);
 
     List<WorkingCapitalLoanBreachSchedulePeriodDataV1> mapBreachSchedule(List<WorkingCapitalLoanBreachScheduleData> source);
+
+    @Named("toTotalChargeAmount")
+    default BigDecimal toTotalChargeAmount(final WorkingCapitalLoanSummaryData source) {
+        return Optional.ofNullable(source.getFee()).map(fee -> fee.add(MathUtil.nullToZero(source.getPenalty())))
+                .orElseGet(source::getPenalty);
+    }
 
     @Named("toAvroDecimalScale")
     default BigDecimal toAvroDecimalScale(final BigDecimal value) {

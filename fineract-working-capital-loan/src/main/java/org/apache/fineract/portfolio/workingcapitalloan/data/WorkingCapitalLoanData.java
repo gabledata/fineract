@@ -85,8 +85,8 @@ public class WorkingCapitalLoanData implements Serializable {
     private BigDecimal approvedDiscountFee;
     private Integer numberOfRepayments;
     private BigDecimal periodPaymentAmount;
-    private BigDecimal dailyEir;
     private BigDecimal calculatedAnnualEir;
+    private List<WorkingCapitalLoanPeriodPaymentRateChangeData> periodPaymentRateHistory;
     private DelinquencyBucketData delinquencyBucket;
     private WorkingCapitalBreachData breach;
     private WorkingCapitalNearBreachData nearBreach;
@@ -110,4 +110,9 @@ public class WorkingCapitalLoanData implements Serializable {
     private Boolean chargedOff;
     private LocalDate chargedOffOnDate;
     private CodeValueData chargeOffReason;
+    // Write-off has no boolean flag: unlike charge-off (which keeps the loan ACTIVE), the write-off state is already
+    // carried by status == CLOSED_WRITTEN_OFF.
+    private LocalDate writtenOffOnDate;
+    private CodeValueData writeOffReason;
+    private LocalDate overpaidOnDate;
 }

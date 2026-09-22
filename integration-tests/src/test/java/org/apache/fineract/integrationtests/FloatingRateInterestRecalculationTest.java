@@ -21,21 +21,20 @@ package org.apache.fineract.integrationtests;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
+import org.apache.fineract.client.models.FloatingRateCreateRequest;
+import org.apache.fineract.client.models.FloatingRateCreateResponse;
 import org.apache.fineract.client.models.FloatingRatePeriodRequest;
-import org.apache.fineract.client.models.FloatingRateRequest;
 import org.apache.fineract.client.models.GetLoansLoanIdRepaymentPeriod;
 import org.apache.fineract.client.models.GetLoansLoanIdResponse;
-import org.apache.fineract.client.models.PostFloatingRatesResponse;
 import org.apache.fineract.integrationtests.client.feign.FeignLoanTestBase;
 import org.apache.fineract.integrationtests.client.feign.helpers.FeignRawHttpHelper;
+import org.apache.fineract.integrationtests.client.feign.modules.LoanRequestBuilders;
 import org.apache.fineract.integrationtests.common.Utils;
 import org.apache.fineract.integrationtests.common.accounting.Account;
-import org.apache.fineract.integrationtests.common.loans.LoanApplicationTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanProductTestBuilder;
 import org.junit.jupiter.api.Test;
 
@@ -126,10 +125,11 @@ public class FloatingRateInterestRecalculationTest extends FeignLoanTestBase {
         FloatingRatePeriodRequest changedPeriod = new FloatingRatePeriodRequest().fromDate("01 April 2024")
                 .interestRate(CHANGED_INTEREST_RATE).isDifferentialToBaseLendingRate(false).locale("en").dateFormat("dd MMMM yyyy");
 
-        FloatingRateRequest floatingRateRequest = new FloatingRateRequest().name(Utils.uniqueRandomStringGenerator("FLOAT_RATE_", 6))
-                .isBaseLendingRate(false).isActive(true).ratePeriods(List.of(initialPeriod, changedPeriod));
+        FloatingRateCreateRequest floatingRateRequest = new FloatingRateCreateRequest()
+                .name(Utils.uniqueRandomStringGenerator("FLOAT_RATE_", 6)).isBaseLendingRate(false).isActive(true)
+                .ratePeriods(List.of(initialPeriod, changedPeriod));
 
-        PostFloatingRatesResponse response = ok(() -> fineractClient().floatingRates().createFloatingRate(floatingRateRequest));
+        FloatingRateCreateResponse response = ok(() -> fineractClient().floatingRates().createFloatingRate(floatingRateRequest));
         assertNotNull(response);
         assertNotNull(response.getResourceId());
         return response.getResourceId();
@@ -161,20 +161,11 @@ public class FloatingRateInterestRecalculationTest extends FeignLoanTestBase {
     }
 
     private Long createAndDisburseLoan(Long clientId, Integer loanProductId, String disburseDateStr) {
-        String loanApplicationJSON = new LoanApplicationTestBuilder().withPrincipal("10000").withLoanTermFrequency("12")
-                .withLoanTermFrequencyAsMonths().withNumberOfRepayments("12").withRepaymentEveryAfter("1")
-                .withRepaymentFrequencyTypeAsMonths().withAmortizationTypeAsEqualInstallments()
-                .withInterestCalculationPeriodTypeSameAsRepaymentPeriod().withInterestTypeAsDecliningBalance()
-                .withExpectedDisbursementDate(disburseDateStr).withSubmittedOnDate(disburseDateStr).withLoanType("individual")
-                .build(clientId.toString(), loanProductId.toString(), null);
-
-        JsonObject jsonObject = JsonParser.parseString(loanApplicationJSON).getAsJsonObject();
-        jsonObject.remove("interestRatePerPeriod");
-        jsonObject.addProperty("interestRateDifferential", "0");
-        jsonObject.addProperty("isFloatingInterestRate", true);
-        loanApplicationJSON = jsonObject.toString();
-
-        final Long loanId = applyForLoanFromJson(loanApplicationJSON);
+        // the product supplies the rate, so the application sends no interestRatePerPeriod
+        final Long loanId = applyForLoan(
+                LoanRequestBuilders.legacyIndividualApplication(clientId, loanProductId.longValue(), "10000", 12, null, disburseDateStr)
+                        .isFloatingInterestRate(true)//
+                        .interestRateDifferential(BigDecimal.ZERO));
         approveLoan(loanId, approveLoanRequest(10000.0, disburseDateStr));
         disburseLoanWithNetDisbursalAmount(loanId, disburseDateStr, "10000");
         return loanId;

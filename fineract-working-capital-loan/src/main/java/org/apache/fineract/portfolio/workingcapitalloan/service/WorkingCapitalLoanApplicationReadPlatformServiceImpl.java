@@ -19,7 +19,6 @@
 package org.apache.fineract.portfolio.workingcapitalloan.service;
 
 import jakarta.persistence.criteria.Predicate;
-import java.math.BigDecimal;
 import java.math.MathContext;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -93,6 +92,7 @@ public class WorkingCapitalLoanApplicationReadPlatformServiceImpl implements Wor
     private final WorkingCapitalLoanChargeReadPlatformService chargeReadPlatformService;
     private final ApplicationCurrencyRepositoryWrapper applicationCurrencyRepositoryWrapper;
     private final AppUserRepository appUserRepository;
+    private final WorkingCapitalLoanPeriodPaymentRateChangeReadService rateChangeReadService;
 
     @Override
     public WorkingCapitalLoanTemplateData retrieveTemplate(final Long productId, final Long clientId) {
@@ -190,6 +190,7 @@ public class WorkingCapitalLoanApplicationReadPlatformServiceImpl implements Wor
         enrichWithFullCurrency(data);
         enrichWithSubmittedBy(loan, data);
         enrichWithRateAndTerm(loan, data);
+        data.setPeriodPaymentRateHistory(rateChangeReadService.retrieveRateChangeHistory(loan));
         enrichWithStartDates(loan, data);
         enrichWithOriginators(loanId, data);
         return data;
@@ -227,14 +228,10 @@ public class WorkingCapitalLoanApplicationReadPlatformServiceImpl implements Wor
         final MathContext mc = MoneyHelper.getMathContext();
         final CurrencyData currency = WorkingCapitalLoanCurrencyResolver.resolveCurrency(loan);
         scheduleRepositoryWrapper.readModel(loan.getId(), mc, currency).ifPresent(model -> {
-            final BigDecimal dailyEir = model.effectiveInterestRate();
             data.setNumberOfRepayments(model.effectiveTotalTerm());
             data.setPeriodPaymentAmount(model.expectedPaymentAmount() != null ? model.expectedPaymentAmount().getAmount() : null);
             data.setNetDisbursalAmount(model.netDisbursementAmount() != null ? model.netDisbursementAmount().getAmount() : null);
-            data.setDailyEir(dailyEir);
-            if (dailyEir != null) {
-                data.setCalculatedAnnualEir(BigDecimal.ONE.add(dailyEir, mc).pow(365, mc).subtract(BigDecimal.ONE, mc));
-            }
+            data.setCalculatedAnnualEir(model.calculatedAnnualEir());
         });
     }
 
@@ -245,13 +242,11 @@ public class WorkingCapitalLoanApplicationReadPlatformServiceImpl implements Wor
         breachScheduleRepository.findTopByLoanIdAndBreachTrueOrderByFromDateAsc(loan.getId())
                 .ifPresent(period -> data.setBreachStartDate(period.getFromDate()));
 
-        // delinquencyStartDate: fromDate of the earliest delinquent period plus delinquencyGraceDays. The delinquency
-        // range
-        // schedule does not apply the grace days when generating periods, so they are added here.
+        // delinquencyStartDate: fromDate of the earliest delinquent period. The delinquency range
         delinquencyRangeScheduleRepository.findTopByLoanIdAndMinPaymentCriteriaMetFalseOrderByFromDateAsc(loan.getId())
                 .ifPresent(period -> {
-                    final int graceDays = data.getDelinquencyGraceDays() != null ? data.getDelinquencyGraceDays() : 0;
-                    data.setDelinquencyStartDate(period.getFromDate().plusDays(graceDays));
+                    data.setDelinquencyStartDate(period.getFromDate());
+                    Optional.ofNullable(data.getSummary()).ifPresent(summary -> summary.setOverdueSinceDate(period.getToDate()));
                 });
     }
 
@@ -276,4 +271,5 @@ public class WorkingCapitalLoanApplicationReadPlatformServiceImpl implements Wor
     public boolean existsByLoanId(Long loanId) {
         return this.repository.existsById(loanId);
     }
+
 }

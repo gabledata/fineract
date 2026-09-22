@@ -29,6 +29,7 @@ import org.apache.fineract.infrastructure.core.data.StringEnumOptionData;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.portfolio.delinquency.data.DelinquencyRangeData;
 import org.apache.fineract.portfolio.fund.data.FundData;
+import org.apache.fineract.portfolio.workingcapitalloan.data.WorkingCapitalLoanPeriodPaymentRateChangeData;
 import org.apache.fineract.portfolio.workingcapitalloanproduct.api.WorkingCapitalLoanProductApiResourceSwagger;
 
 /**
@@ -164,6 +165,8 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         public LocalDate expectedMaturityDate;
         @Schema(example = "[2024, 12, 31]", description = "Actual maturity date (when loan is fully paid)")
         public LocalDate actualMaturityDate;
+        @Schema(example = "[2024, 2, 1]", description = "Overpaid date")
+        public LocalDate overpaidOnDate;
     }
 
     @Schema(description = "GetWorkingCapitalLoansLoanIdResponse")
@@ -205,15 +208,22 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         public String loanProductDescription;
         public GetWorkingCapitalLoansLoanIdStatus status;
         public GetWorkingCapitalLoansLoanIdTimeline timeline;
+        @Schema(example = "10000.00", description = "Principal requested at submission; never changes afterwards")
         public BigDecimal proposedPrincipal;
+        @Schema(example = "10000.00", description = "Principal granted at approval; zero before approval and after undoing it "
+                + "(deliberate Working Capital divergence from classic loans)")
         public BigDecimal approvedPrincipal;
-        @Schema(example = "10000.00", description = "Active principal (loanProductRelatedDetails.principal)")
+        @Schema(example = "10000.00", description = "Active principal: the requested amount while the application is "
+                + "pending, the granted amount from approval, the actually disbursed amount from disbursement. Undoing "
+                + "approval or disbursal restores the previous stage's value. This is the contractual principal, not "
+                + "the outstanding balance - see summary.principalOutstanding for that.")
         public BigDecimal principal;
         @Schema(example = "10000.00", description = "Net disbursal amount from the amortization schedule; null if schedule not yet generated")
         public BigDecimal netDisbursalAmount;
 
         public CurrencyData currency;
-        @Schema(example = "1.0")
+        @Schema(example = "1.0", description = "The loan's own period payment rate. A rate change does not move it - the rate in force on "
+                + "a given date comes from the rate-change history")
         public BigDecimal paymentRate;
         @Schema(example = "30")
         public Integer repaymentEvery;
@@ -233,14 +243,27 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         @Schema(example = "0.0", description = "Approved discount fee set during loan approval")
         public BigDecimal approvedDiscountFee;
         @Schema(example = "90", description = "Number of repayments (effectiveTotalTerm from the amortization schedule; for WC this is the "
-                + "loan term in days); null if schedule not yet generated")
+                + "loan term in days). Unlike the priced figures beside it a rate change does move it, to the day the rate now in force is "
+                + "solved to close the schedule on - a day the amounts here cannot be used to derive, because it falls out of the balance "
+                + "and the fee still unearned when the change takes effect. Null if schedule not yet generated")
         public Integer numberOfRepayments;
-        @Schema(example = "116.67", description = "Daily expected payment amount from the amortization schedule; null if schedule not yet generated")
+        @Schema(example = "0.29", description = "Daily payment amount the loan was priced at: totalPaymentVolume x paymentRate / 100 / "
+                + "npvDayCount, rounded to the currency. A rate change does not restate it, no more than it restates paymentRate or "
+                + "calculatedAnnualEir - what is billed from the day a change takes effect follows the rate then in force, and is read "
+                + "off the amortization schedule rows. Null if schedule not yet generated")
         public BigDecimal periodPaymentAmount;
-        @Schema(example = "0.000435", description = "Periodic (daily) effective interest rate computed via RATE(); null if schedule not yet generated")
-        public BigDecimal dailyEir;
-        @Schema(example = "0.1691", description = "Annualized EIR: (1 + dailyEir)^365 − 1; null if schedule not yet generated")
+        @Schema(example = "46.845102", description = "Annual effective rate the loan was priced at, as a percentage: compounded over "
+                + "the product's NPV day count, not a calendar year, and rounded to six decimals. The base schedule's daily "
+                + "discounting derives from it. A rate change does not restate it - the schedule re-solves its own rate from the day "
+                + "the change takes effect. Comes from discount-fee pricing, not a lending interest rate. Null if schedule not yet "
+                + "generated or if the loan amortizes FLAT, which solves no rate")
         public BigDecimal calculatedAnnualEir;
+        @Schema(description = "Period payment rate change history, most recently booked first - which for a backdated change is not "
+                + "the same as effective-date order. Each entry carries the annual EIR (as a percentage, e.g. 43.756245, the unit the "
+                + "top-level calculatedAnnualEir is expressed in as well), daily payment amount and segment term the amortization "
+                + "schedule computed when that change was booked; those are null for changes booked before the snapshot was "
+                + "introduced, and the EIR is null on a FLAT loan")
+        public List<WorkingCapitalLoanPeriodPaymentRateChangeData> periodPaymentRateHistory;
         @Schema(description = "Working capital breach)")
         public WorkingCapitalLoanProductApiResourceSwagger.GetWorkingCapitalLoanProductsResponse.GetWorkingCapitalLoanBreach breach;
         public WorkingCapitalLoanProductApiResourceSwagger.GetWorkingCapitalLoanNearBreach nearBreach;
@@ -275,6 +298,9 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         @Schema(description = "Loan summary: principal / fee / penalty totals, income recognition and aggregates")
         public GetWorkingCapitalLoanSummary summary;
 
+        @Schema(example = "2024-01-14", description = "Date on which loan was overpaid otherwise null")
+        public LocalDate overpaidOnDate;
+
         @Schema(description = "Working Capital Loan charge")
         public static final class GetWorkingCapitalLoanCharge {
 
@@ -295,6 +321,8 @@ public final class WorkingCapitalLoanApiResourceSwagger {
             public BigDecimal amount;
             @Schema(example = "10")
             public BigDecimal amountPaid;
+            @Schema(example = "0")
+            public BigDecimal amountWrittenOff;
             @Schema(example = "0")
             public BigDecimal amountOutstanding;
             @Schema(example = "false")
@@ -332,6 +360,7 @@ public final class WorkingCapitalLoanApiResourceSwagger {
             public BigDecimal realizedIncomeFromDiscountFee;
             public BigDecimal unrealizedIncomeFromDiscountFee;
             public BigDecimal overpayment;
+            @Schema(description = "Total amount actually disbursed")
             public BigDecimal totalDisbursement;
             public BigDecimal totalDiscountFee;
             public BigDecimal totalDiscountFeeAdjustment;
@@ -355,6 +384,10 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         public LocalDate chargedOffOnDate;
         @Schema(description = "Charge-off reason code value, when one was provided")
         public CodeValueData chargeOffReason;
+        @Schema(description = "Date the loan was written off. Cleared by an undo write-off", example = "2026-07-16")
+        public LocalDate writtenOffOnDate;
+        @Schema(description = "Write-off reason code value, when one was provided")
+        public CodeValueData writeOffReason;
 
         @Schema(description = "Originator data associated with the loan")
         public static final class GetWorkingCapitalLoansLoanIdOriginatorData {
@@ -383,7 +416,8 @@ public final class WorkingCapitalLoanApiResourceSwagger {
 
         @Schema(example = "1")
         public Long id;
-        @Schema(example = "10000.00")
+        @Schema(example = "10000.00", description = "Total repayable principal: the disbursed amount plus the discount fee. "
+                + "Zero until disbursement, and zero again once a disbursal is undone.")
         public BigDecimal principal;
         @Schema(example = "10000.00")
         public BigDecimal principalPaid;
@@ -403,6 +437,18 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         public BigDecimal penaltyPaid;
         @Schema(example = "10000.00")
         public BigDecimal penaltyOutstanding;
+        @Schema(example = "10000.00", description = "Principal moved out of the outstanding balance by a write-off")
+        public BigDecimal principalWrittenOff;
+        @Schema(example = "0.00", description = "Fees moved out of the outstanding balance by a write-off")
+        public BigDecimal feeWrittenOff;
+        @Schema(example = "0.00", description = "Penalties moved out of the outstanding balance by a write-off")
+        public BigDecimal penaltyWrittenOff;
+        @Schema(example = "10000.00", description = "Gross amount written off; not reduced by recoveries")
+        public BigDecimal totalWrittenOff;
+        @Schema(example = "2000.00", description = "Collected after the write-off and recognized as recovery income")
+        public BigDecimal totalRecovered;
+        @Schema(example = "8000.00", description = "Still recoverable (totalWrittenOff - totalRecovered); caps the next recovery payment")
+        public BigDecimal writtenOffOutstanding;
         @Schema(example = "10000.00")
         public BigDecimal realizedIncomeFromDiscountFee;
         @Schema(example = "10000.00")
@@ -415,7 +461,7 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         public BigDecimal totalRepayment;
         @Schema(example = "10000.00")
         public BigDecimal totalOutstanding;
-        @Schema(example = "10000.00")
+        @Schema(example = "10000.00", description = "Total amount actually disbursed")
         public BigDecimal totalDisbursement;
         @Schema(example = "10000.00")
         public BigDecimal totalDiscountFee;
@@ -435,7 +481,8 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         @Schema(example = "1")
         public Long loanId;
         public LocalDate expectedDisbursementDate;
-        @Schema(example = "10000.00", description = "Expected (planned) disbursement principal")
+        @Schema(example = "10000.00", description = "Expected (planned) disbursement principal. Tracks the active "
+                + "principal, so modifying a pending application or undoing an approval moves it too.")
         public BigDecimal principal;
         public LocalDate expectedMaturityDate;
         public LocalDate actualDisbursementDate;
@@ -777,6 +824,15 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         @Schema(description = "Delinquent principal amount", example = "1000.00")
         public BigDecimal delinquentPrincipal;
 
+        @Schema(description = "Date the loan was last paid by any repayment like transaction (repayment, goodwill credit, payout refund or charge adjustment)", example = "[2024, 1, 15]")
+        public LocalDate lastPaymentDate;
+        @Schema(description = "Amount of the last payment made on the loan", example = "123.45")
+        public BigDecimal lastPaymentAmount;
+        @Schema(description = "Date the loan was last repaid by a repayment transaction", example = "[2024, 1, 15]")
+        public LocalDate lastRepaymentDate;
+        @Schema(description = "Amount of the last repayment made on the loan", example = "123.45")
+        public BigDecimal lastRepaymentAmount;
+
         @Schema(description = "Delinquency amount for a specific age range")
         public static final class WorkingCapitalCollectionRangeScheduleDelinquency {
 
@@ -840,11 +896,17 @@ public final class WorkingCapitalLoanApiResourceSwagger {
         @Schema(example = "0.17", description = "New period payment rate")
         public BigDecimal periodPaymentRate;
 
+        @Schema(requiredMode = Schema.RequiredMode.REQUIRED, example = "01 July 2022", description = "Date the new rate takes effect. Mandatory. May be backdated or set in the future, but not before the disbursement date.")
+        public String effectiveDate;
+
         @Schema(example = "Rate change note")
         public String note;
 
         @Schema(example = "en_GB")
         public String locale;
+
+        @Schema(example = "dd MMMM yyyy")
+        public String dateFormat;
     }
 
 }

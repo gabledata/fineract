@@ -25,11 +25,15 @@ public final class WorkingCapitalLoanConstants {
     }
 
     public static final String WCL_RESOURCE_NAME = "WORKINGCAPITALLOAN";
+    public static final String WORKING_CAPITAL_LOAN_TRANSACTION_IDENTIFIER = "WC";
 
     /**
      * Shared by the create/modify validation error and the schedule-generation exception so both emit the same message.
      */
     public static final String EIR_NOT_CALCULABLE_USER_MESSAGE = "Please check the input values - unable to calculate a valid EIR.";
+    /** The FLAT counterpart: a FLAT schedule solves no EIR, so its structural failures must not be reported as one. */
+    public static final String SCHEDULE_NOT_CALCULABLE_USER_MESSAGE = "Please check the input values - "
+            + "unable to calculate a valid amortization schedule.";
 
     // Common request parameters (locale, dateFormat, id)
     public static final String localeParameterName = "locale";
@@ -52,6 +56,7 @@ public final class WorkingCapitalLoanConstants {
     public static final String APPROVE_LOAN_COMMAND = "approve";
     public static final String DISBURSE_LOAN_COMMAND = "disburse";
     public static final String REPAYMENT_LOAN_COMMAND = "repayment";
+    public static final String PREPAY_LOAN_COMMAND = "prepayLoan";
     public static final String GOODWILL_CREDIT_LOAN_COMMAND = "goodwillCredit";
     public static final String CREDIT_BALANCE_REFUND_COMMAND = "creditBalanceRefund";
     public static final String PAYOUT_REFUND_COMMAND = "payoutRefund";
@@ -59,6 +64,9 @@ public final class WorkingCapitalLoanConstants {
     public static final String DISCOUNT_FEE_ADJUSTMENT_LOAN_COMMAND = "discountFeeAdjustment";
     public static final String CHARGE_OFF_LOAN_COMMAND = "chargeOff";
     public static final String UNDO_CHARGE_OFF_LOAN_COMMAND = "undoChargeOff";
+    public static final String WRITE_OFF_LOAN_COMMAND = "writeOff";
+    public static final String UNDO_WRITE_OFF_LOAN_COMMAND = "undoWriteOff";
+    public static final String RECOVERY_PAYMENT_LOAN_COMMAND = "recoveryPayment";
 
     // Approval / Rejection / Undo-approval parameters
     public static final String RESOURCE_NAME = WCL_RESOURCE_NAME;
@@ -99,6 +107,9 @@ public final class WorkingCapitalLoanConstants {
 
     public static final String WRITE_OFF_REASONS = "WriteOffReasons";
     public static final String CHARGE_OFF_REASONS = "ChargeOffReasons";
+    // Lower-case "writeoff" on purpose: the incoming write-off parameters follow the term/progressive loan shape,
+    // where the reason is sent as "writeoffReasonId" (see LoanTransactionValidatorImpl).
+    public static final String writeoffReasonIdParamName = "writeoffReasonId";
 
     // transaction undo parameters
     public static final String reversalExternalIdParamName = "reversalExternalId";
@@ -109,6 +120,7 @@ public final class WorkingCapitalLoanConstants {
     // Period payment rate change parameters
     public static final String periodPaymentRateParamName = "periodPaymentRate";
     public static final String previousPeriodPaymentRateParamName = "previousRate";
+    public static final String effectiveDateParamName = "effectiveDate";
 
     // Near breach action parameters
     public static final String nearBreachActionParamName = "action";

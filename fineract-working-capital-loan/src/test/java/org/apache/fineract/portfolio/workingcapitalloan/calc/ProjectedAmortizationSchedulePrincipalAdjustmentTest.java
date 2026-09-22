@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.util.List;
 import org.apache.fineract.organisation.monetary.data.CurrencyData;
 import org.apache.fineract.organisation.monetary.domain.Money;
+import org.apache.fineract.portfolio.workingcapitalloanproduct.domain.WorkingCapitalAmortizationType;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -48,7 +49,7 @@ class ProjectedAmortizationSchedulePrincipalAdjustmentTest {
 
     /** 9000 disbursed with a 500 discount fee, giving a 50 daily expected payment over a 190 day term. */
     private ProjectedAmortizationScheduleModel model() {
-        return ProjectedAmortizationScheduleModel.generate(new BigDecimal("500"), new BigDecimal("9000"), TPV, RATE, DAY_COUNT,
+        return ProjectedAmortizationScheduleModel.generateEir(new BigDecimal("500"), new BigDecimal("9000"), TPV, RATE, DAY_COUNT,
                 DISBURSEMENT, MC, CURRENCY, DISBURSEMENT);
     }
 
@@ -96,6 +97,42 @@ class ProjectedAmortizationSchedulePrincipalAdjustmentTest {
         }
     }
 
+    /** A FLAT schedule owes the adjustment the same treatment: its own period bills it, nothing else moves. */
+    @Test
+    void leavesAFlatProjectionUntouchedToo() {
+        final ProjectedAmortizationScheduleModel unadjusted = flatModel();
+        final ProjectedAmortizationScheduleModel adjusted = flatModel();
+
+        adjusted.applyPrincipalAdjustment(ADJUSTMENT_DATE, ADJUSTMENT);
+
+        assertEquals(0, paymentOn(adjusted, ADJUSTMENT_DATE).expectedPaymentAmount().getAmount().compareTo(new BigDecimal("250")));
+        assertEquals(unadjusted.projectedPayments().size(), adjusted.projectedPayments().size());
+        for (int i = 0; i < unadjusted.projectedPayments().size(); i++) {
+            final ProjectedPayment expected = unadjusted.projectedPayments().get(i);
+            final ProjectedPayment actual = adjusted.projectedPayments().get(i);
+            assertEquals(expected.date(), actual.date());
+            if (!ADJUSTMENT_DATE.equals(expected.date())) {
+                assertSameAmount(expected.expectedPaymentAmount(), actual.expectedPaymentAmount(),
+                        "payment of period " + expected.paymentNo());
+            }
+            assertSameAmount(expected.expectedBalance(), actual.expectedBalance(), "balance of period " + expected.paymentNo());
+            assertSameAmount(expected.expectedAmortizationAmount(), actual.expectedAmortizationAmount(),
+                    "amortization of period " + expected.paymentNo());
+            assertSameAmount(expected.expectedDiscountFeeBalance(), actual.expectedDiscountFeeBalance(),
+                    "discount fee balance of period " + expected.paymentNo());
+        }
+        // 500 / 9500 x 50 = 2.6315 a day, reported as the movement of the rounded running total: 26.32 on the tenth
+        // day less 23.68 on the ninth, the adjustment having earned nothing
+        final ProjectedPayment dayAfter = paymentOn(adjusted, ADJUSTMENT_DATE.plusDays(1));
+        assertEquals(0, dayAfter.expectedAmortizationAmount().getAmount().compareTo(new BigDecimal("2.64")));
+        assertEquals(0, dayAfter.expectedDiscountFeeBalance().getAmount().compareTo(new BigDecimal("473.68")));
+    }
+
+    private ProjectedAmortizationScheduleModel flatModel() {
+        return ProjectedAmortizationScheduleModel.generate(WorkingCapitalAmortizationType.FLAT, new BigDecimal("500"),
+                new BigDecimal("9000"), TPV, RATE, DAY_COUNT, DISBURSEMENT, MC, CURRENCY, DISBURSEMENT);
+    }
+
     private static void assertSameAmount(final Money expected, final Money actual, final String message) {
         assertEquals(expected == null ? null : expected.getAmount(), actual == null ? null : actual.getAmount(), message);
     }
@@ -118,7 +155,8 @@ class ProjectedAmortizationSchedulePrincipalAdjustmentTest {
 
         final ProjectedPayment adjustedPayment = paymentOn(adjusted, ADJUSTMENT_DATE);
         assertNotNull(adjustedPayment);
-        assertEquals(0, adjustedPayment.expectedPaymentAmount().getAmount().compareTo(new BigDecimal("250")));
+        // The loan was repaid in full, so the period bills nothing of its own and the row carries the adjustment alone.
+        assertEquals(0, adjustedPayment.expectedPaymentAmount().getAmount().compareTo(ADJUSTMENT));
         assertEquals(adjustedPayment.paymentNo(), adjusted.projectedPayments().getLast().paymentNo(),
                 "the adjusted period must be the last one kept");
         for (int i = 0; i < adjusted.projectedPayments().size(); i++) {

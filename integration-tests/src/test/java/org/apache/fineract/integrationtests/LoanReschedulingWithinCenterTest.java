@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.google.gson.JsonObject;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.text.DateFormat;
@@ -30,23 +29,32 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.apache.fineract.client.feign.FineractFeignClient;
+import org.apache.fineract.client.feign.util.FeignCalls;
+import org.apache.fineract.client.models.ClientCollateralCreateRequest;
+import org.apache.fineract.client.models.CollateralProductCreateRequest;
+import org.apache.fineract.client.models.GetCentersCenterIdResponse;
 import org.apache.fineract.client.models.GetLoansLoanIdRepaymentPeriod;
 import org.apache.fineract.client.models.GetLoansLoanIdResponse;
 import org.apache.fineract.client.models.PostClientsRequest;
+import org.apache.fineract.client.models.PostLoanProductsRequest;
 import org.apache.fineract.client.models.PostLoansDisbursementData;
+import org.apache.fineract.client.models.PostLoansLoanIdDisbursementData;
+import org.apache.fineract.client.models.PostLoansRequest;
+import org.apache.fineract.client.models.PostLoansRequestCollateralData;
 import org.apache.fineract.integrationtests.client.feign.FeignLoanTestBase;
-import org.apache.fineract.integrationtests.client.feign.helpers.FeignGroupCenterHelper;
+import org.apache.fineract.integrationtests.client.feign.helpers.FeignCenterHelper;
+import org.apache.fineract.integrationtests.client.feign.helpers.FeignGroupHelper;
 import org.apache.fineract.integrationtests.client.feign.helpers.FeignOfficeHelper;
+import org.apache.fineract.integrationtests.client.feign.helpers.FeignStaffHelper;
 import org.apache.fineract.integrationtests.client.feign.modules.LoanRequestBuilders;
 import org.apache.fineract.integrationtests.client.feign.modules.LoanTestData;
 import org.apache.fineract.integrationtests.common.CalendarHelper;
 import org.apache.fineract.integrationtests.common.FineractFeignClientHelper;
 import org.apache.fineract.integrationtests.common.Utils;
-import org.apache.fineract.integrationtests.common.loans.LoanApplicationTestBuilder;
 import org.apache.fineract.integrationtests.common.loans.LoanProductTestBuilder;
 import org.apache.fineract.portfolio.loanaccount.domain.LoanStatus;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,12 +66,25 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
 
     private static final Logger LOG = LoggerFactory.getLogger(LoanReschedulingWithinCenterTest.class);
     private static final Long LEGAL_FORM_PERSON = 1L;
+    private static final String STAFF_JOINING_DATE = "20 September 2011";
+    private static final String GROUP_ACTIVATION_DATE = "04 March 2011";
+    private static final BigDecimal COLLATERAL_PCT_TO_BASE = new BigDecimal("40");
+    private static final BigDecimal COLLATERAL_BASE_PRICE = new BigDecimal("100000000");
+    private static final BigDecimal CLIENT_COLLATERAL_QUANTITY = new BigDecimal("100");
 
+    private static FineractFeignClient fineractClient;
     private static FeignOfficeHelper officeHelper;
+    private static FeignStaffHelper staffHelper;
+    private static FeignGroupHelper groupHelper;
+    private static FeignCenterHelper centerHelper;
 
     @BeforeAll
-    public static void setupOfficeHelper() {
-        officeHelper = new FeignOfficeHelper(FineractFeignClientHelper.getFineractFeignClient());
+    public static void setupHelpers() {
+        fineractClient = FineractFeignClientHelper.getFineractFeignClient();
+        officeHelper = new FeignOfficeHelper(fineractClient);
+        staffHelper = new FeignStaffHelper(fineractClient);
+        groupHelper = new FeignGroupHelper(fineractClient);
+        centerHelper = new FeignCenterHelper(fineractClient);
     }
 
     @Test
@@ -71,21 +92,21 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
         Long officeId = officeHelper.createOffice(LocalDate.of(2007, 7, 1)).getResourceId();
         String name = "TestFullCreation" + new Timestamp(new java.util.Date().getTime());
         String externalId = UUID.randomUUID().toString();
-        int staffId = FeignGroupCenterHelper.createStaff(officeId.intValue()).intValue();
-        long groupId = FeignGroupCenterHelper.createGroup(officeId.intValue());
+        int staffId = staffHelper.createStaff(officeId, STAFF_JOINING_DATE).getResourceId().intValue();
+        long groupId = groupHelper.createActiveGroup(officeId, GROUP_ACTIVATION_DATE).getResourceId();
         final String centerActivationDate = "01 July 2007";
-        Long centerId = FeignGroupCenterHelper.createCenter(name, officeId.intValue(), externalId, staffId, new long[] { groupId },
-                centerActivationDate);
-        JsonObject center = FeignGroupCenterHelper.retrieveCenter(centerId);
+        Long centerId = centerHelper.createCenter(name, officeId, externalId, Long.valueOf(staffId), List.of(groupId), centerActivationDate)
+                .getResourceId();
+        GetCentersCenterIdResponse center = centerHelper.retrieveCenter(centerId);
         assertNotNull(center);
-        assertEquals(staffId, center.get("staffId").getAsInt());
-        assertTrue(center.get("active").getAsBoolean());
+        assertEquals(staffId, center.getStaffId().intValue());
+        assertTrue(center.getActive());
 
         Long calendarId = createCalendarMeeting(centerId);
 
         Long clientId = createClient(officeId.intValue(), "01 July 2014");
 
-        FeignGroupCenterHelper.associateClientToGroup(groupId, clientId);
+        groupHelper.associateClient(groupId, clientId);
 
         DateFormat dateFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.US);
         dateFormat.setTimeZone(Utils.getTimeZoneOfTenant());
@@ -95,13 +116,13 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
         final String recalculationRestFrequencyDate = "01 January 2012";
         final boolean isMultiTrancheLoan = false;
 
-        Long collateralId = FeignGroupCenterHelper.createCollateralProduct();
+        Long collateralId = createCollateralProduct();
         assertNotNull(collateralId);
-        Long clientCollateralId = FeignGroupCenterHelper.createClientCollateral(clientId, collateralId);
+        Long clientCollateralId = createClientCollateral(clientId, collateralId);
         assertNotNull(clientCollateralId);
 
-        List<HashMap> collaterals = new ArrayList<>();
-        collaterals.add(collateral(clientCollateralId.intValue(), BigDecimal.valueOf(1)));
+        List<PostLoansRequestCollateralData> collaterals = new ArrayList<>();
+        collaterals.add(collateral(clientCollateralId, BigDecimal.valueOf(1)));
 
         Long loanProductId = createLoanProductWithInterestRecalculation(LoanProductTestBuilder.RBI_INDIA_STRATEGY,
                 LoanProductTestBuilder.RECALCULATION_COMPOUNDING_METHOD_NONE,
@@ -110,7 +131,7 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
                 LoanProductTestBuilder.INTEREST_APPLICABLE_STRATEGY_ON_PRE_CLOSE_DATE, isMultiTrancheLoan);
 
         Long loanId = applyForLoanApplicationForInterestRecalculation(clientId, groupId, calendarId, loanProductId, disbursalDate,
-                recalculationRestFrequencyDate, LoanApplicationTestBuilder.RBI_INDIA_STRATEGY, collaterals);
+                recalculationRestFrequencyDate, LoanProductTestBuilder.RBI_INDIA_STRATEGY, collaterals);
 
         assertNotNull(loanId);
         verifyLoanStatus(loanId, LoanStatus.SUBMITTED_AND_PENDING_APPROVAL);
@@ -141,21 +162,21 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
         Long officeId = officeHelper.createOffice(LocalDate.of(2007, 7, 1)).getResourceId();
         String name = "TestFullCreation" + new Timestamp(new java.util.Date().getTime());
         String externalId = UUID.randomUUID().toString();
-        int staffId = FeignGroupCenterHelper.createStaff(officeId.intValue()).intValue();
-        long groupId = FeignGroupCenterHelper.createGroup(officeId.intValue());
+        int staffId = staffHelper.createStaff(officeId, STAFF_JOINING_DATE).getResourceId().intValue();
+        long groupId = groupHelper.createActiveGroup(officeId, GROUP_ACTIVATION_DATE).getResourceId();
         final String centerActivationDate = "01 July 2007";
-        Long centerId = FeignGroupCenterHelper.createCenter(name, officeId.intValue(), externalId, staffId, new long[] { groupId },
-                centerActivationDate);
-        JsonObject center = FeignGroupCenterHelper.retrieveCenter(centerId);
+        Long centerId = centerHelper.createCenter(name, officeId, externalId, Long.valueOf(staffId), List.of(groupId), centerActivationDate)
+                .getResourceId();
+        GetCentersCenterIdResponse center = centerHelper.retrieveCenter(centerId);
         assertNotNull(center);
-        assertEquals(staffId, center.get("staffId").getAsInt());
-        assertTrue(center.get("active").getAsBoolean());
+        assertEquals(staffId, center.getStaffId().intValue());
+        assertTrue(center.getActive());
 
         Long calendarId = createCalendarMeeting(centerId);
 
         Long clientId = createClient(officeId.intValue(), "01 July 2014");
 
-        FeignGroupCenterHelper.associateClientToGroup(groupId, clientId);
+        groupHelper.associateClient(groupId, clientId);
 
         DateFormat dateFormat = new SimpleDateFormat("dd MMMM yyyy", Locale.US);
         dateFormat.setTimeZone(Utils.getTimeZoneOfTenant());
@@ -179,25 +200,24 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
 
         List<PostLoansDisbursementData> createTranches = List.of(LoanRequestBuilders.applyTrancheDetail(disbursementDate, 5000.0),
                 LoanRequestBuilders.applyTrancheDetail(secondDisbursement, 5000.0));
-        List<PostLoansDisbursementData> approveTranches = List.of(LoanRequestBuilders.applyTrancheDetail(disbursementDate, 5000.0),
-                LoanRequestBuilders.applyTrancheDetail(secondDisbursement, 5000.0));
+        List<PostLoansLoanIdDisbursementData> approveTranches = List.of(LoanRequestBuilders.approveTrancheDetail(disbursementDate, 5000.0),
+                LoanRequestBuilders.approveTrancheDetail(secondDisbursement, 5000.0));
 
-        Long collateralId = FeignGroupCenterHelper.createCollateralProduct();
+        Long collateralId = createCollateralProduct();
         assertNotNull(collateralId);
-        Long clientCollateralId = FeignGroupCenterHelper.createClientCollateral(clientId, collateralId);
+        Long clientCollateralId = createClientCollateral(clientId, collateralId);
         assertNotNull(clientCollateralId);
 
-        List<HashMap> collaterals = new ArrayList<>();
-        collaterals.add(collateral(clientCollateralId.intValue(), BigDecimal.valueOf(1)));
+        List<PostLoansRequestCollateralData> collaterals = new ArrayList<>();
+        collaterals.add(collateral(clientCollateralId, BigDecimal.valueOf(1)));
 
         Long loanId = applyForLoanApplicationForInterestRecalculation(clientId, groupId, calendarId, loanProductId, disbursementDate,
-                recalculationRestFrequencyDate, LoanApplicationTestBuilder.RBI_INDIA_STRATEGY, createTranches, collaterals);
+                recalculationRestFrequencyDate, LoanProductTestBuilder.RBI_INDIA_STRATEGY, createTranches, collaterals);
 
         verifyLoanStatus(loanId, LoanStatus.SUBMITTED_AND_PENDING_APPROVAL);
 
         LOG.info("-----------------------------------APPROVE LOAN-----------------------------------------------------------");
-        approveLoanFromJson(loanId,
-                LoanRequestBuilders.approveLoanWithTranchesJson(10000.0, approveDate, expectedDisbursementDate, approveTranches));
+        approveLoan(loanId, LoanRequestBuilders.approveLoanWithTranches(10000.0, approveDate, expectedDisbursementDate, approveTranches));
         GetLoansLoanIdResponse approvedLoan = getLoanDetails(loanId);
         verifyLoanStatus(approvedLoan, LoanStatus.APPROVED);
         verifyLoanStatus(approvedLoan, status -> Boolean.TRUE.equals(status.getWaitingForDisbursal()));
@@ -235,11 +255,32 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
     }
 
     @SuppressWarnings("rawtypes")
-    private HashMap collateral(Integer collateralId, BigDecimal amount) {
-        HashMap collateral = new HashMap(2);
-        collateral.put("clientCollateralId", collateralId.toString());
-        collateral.put("amount", amount.toString());
-        return collateral;
+    /**
+     * The server only reads collateral for individual accounts (LoanApplicationValidator guards on
+     * {@code loanType.isIndividualAccount()}), so for the jlg loans here it is accepted and ignored.
+     */
+    private PostLoansRequestCollateralData collateral(Long collateralId, BigDecimal quantity) {
+        return new PostLoansRequestCollateralData().clientCollateralId(collateralId).quantity(quantity);
+    }
+
+    private static Long createCollateralProduct() {
+        CollateralProductCreateRequest request = new CollateralProductCreateRequest()//
+                .name(Utils.randomStringGenerator("COLLATERAL_PRODUCT", 5))//
+                .currency("USD")//
+                .unitType("acre")//
+                .quality("agriculture")//
+                .pctToBase(COLLATERAL_PCT_TO_BASE)//
+                .basePrice(COLLATERAL_BASE_PRICE)//
+                .locale(LoanTestData.LOCALE);
+        return FeignCalls.ok(() -> fineractClient.collateralManagement().createCollateral1(request)).getResourceId();
+    }
+
+    private static Long createClientCollateral(Long clientId, Long collateralId) {
+        ClientCollateralCreateRequest request = new ClientCollateralCreateRequest()//
+                .collateralId(collateralId)//
+                .quantity(CLIENT_COLLATERAL_QUANTITY)//
+                .locale(LoanTestData.LOCALE);
+        return FeignCalls.ok(() -> fineractClient.clientCollateralManagement().addClientCollateral(clientId, request)).getResourceId();
     }
 
     private Long createCalendarMeeting(Long centerId) {
@@ -266,8 +307,8 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
             final String recalculationRestFrequencyType, final String recalculationRestFrequencyInterval,
             final String recalculationRestFrequencyDate, final String preCloseInterestCalculationStrategy,
             final boolean isMultiTrancheLoan) {
-        final String loanProductJSON = new LoanProductTestBuilder().withPrincipal("10000.00").withNumberOfRepayments("12")
-                .withRepaymentAfterEvery("2").withRepaymentTypeAsWeek().withinterestRatePerPeriod("2")
+        final PostLoanProductsRequest loanProductRequest = new LoanProductTestBuilder().withPrincipal("10000.00")
+                .withNumberOfRepayments("12").withRepaymentAfterEvery("2").withRepaymentTypeAsWeek().withinterestRatePerPeriod("2")
                 .withInterestRateFrequencyTypeAsMonths().withTranches(isMultiTrancheLoan)
                 .withInterestCalculationPeriodTypeAsRepaymentPeriod(true).withRepaymentStrategy(repaymentStrategy)
                 .withInterestTypeAsDecliningBalance()
@@ -275,49 +316,47 @@ public class LoanReschedulingWithinCenterTest extends FeignLoanTestBase {
                         preCloseInterestCalculationStrategy)
                 .withInterestRecalculationRestFrequencyDetails(recalculationRestFrequencyType, recalculationRestFrequencyInterval, null,
                         null)
-                .withInterestRecalculationCompoundingFrequencyDetails(null, null, null, null).build(null);
-        return createLoanProductFromJson(loanProductJSON);
+                .withInterestRecalculationCompoundingFrequencyDetails(null, null, null, null).buildRequest(null);
+        return createLoanProduct(loanProductRequest);
     }
 
     private Long applyForLoanApplicationForInterestRecalculation(final Long clientId, Long groupId, Long calendarId,
             final Long loanProductId, final String disbursementDate, final String restStartDate, final String repaymentStrategy,
-            List<HashMap> collaterals) {
+            List<PostLoansRequestCollateralData> collaterals) {
         return applyForLoanApplicationForInterestRecalculation(clientId, groupId, calendarId, loanProductId, disbursementDate,
                 restStartDate, repaymentStrategy, null, collaterals);
     }
 
-    @SuppressWarnings({ "rawtypes", "unchecked" })
     private Long applyForLoanApplicationForInterestRecalculation(final Long clientId, Long groupId, Long calendarId,
             final Long loanProductId, final String disbursementDate, final String restStartDate, final String repaymentStrategy,
-            List<PostLoansDisbursementData> tranches, List<HashMap> collaterals) {
+            List<PostLoansDisbursementData> tranches, List<PostLoansRequestCollateralData> collaterals) {
         LOG.info("--------------------------------APPLYING FOR LOAN APPLICATION--------------------------------");
-        List<HashMap> trancheMaps = null;
-        if (tranches != null) {
-            trancheMaps = tranches.stream().map(tranche -> {
-                HashMap map = new HashMap();
-                map.put("expectedDisbursementDate", tranche.getExpectedDisbursementDate());
-                map.put("principal", tranche.getPrincipal().toPlainString());
-                return map;
-            }).toList();
-        }
-        final String loanApplicationJSON = new LoanApplicationTestBuilder() //
-                .withPrincipal("10000.00") //
-                .withLoanTermFrequency("24") //
-                .withLoanTermFrequencyAsWeeks() //
-                .withNumberOfRepayments("12") //
-                .withRepaymentEveryAfter("2") //
-                .withRepaymentFrequencyTypeAsWeeks() //
-                .withInterestRatePerPeriod("2").withLoanType("jlg") //
-                .withCalendarID(calendarId.toString()).withAmortizationTypeAsEqualInstallments() //
-                .withFixedEmiAmount("") //
-                .withTranches(trancheMaps).withInterestTypeAsDecliningBalance() //
-                .withInterestCalculationPeriodTypeAsDays() //
-                .withExpectedDisbursementDate(disbursementDate) //
-                .withSubmittedOnDate(disbursementDate) //
-                .withRepaymentStrategy(repaymentStrategy) //
-                .withCollaterals(collaterals).withCharges(new ArrayList<>())//
-                .build(clientId.toString(), groupId.toString(), loanProductId.toString(), null);
-        return applyForLoanFromJson(loanApplicationJSON);
+        return applyForLoan(new PostLoansRequest()//
+                .clientId(clientId)//
+                .groupId(groupId)//
+                .productId(loanProductId)//
+                .principal(new BigDecimal("10000.00"))//
+                .loanTermFrequency(24)//
+                .loanTermFrequencyType(LoanTestData.RepaymentFrequencyType.WEEKS)//
+                .numberOfRepayments(12)//
+                .repaymentEvery(2)//
+                .repaymentFrequencyType(LoanTestData.RepaymentFrequencyType.WEEKS)//
+                .interestRatePerPeriod(new BigDecimal("2"))//
+                .loanType("jlg")//
+                .calendarId(calendarId)//
+                .syncDisbursementWithMeeting(false)//
+                .amortizationType(LoanTestData.AmortizationType.EQUAL_INSTALLMENTS)//
+                .disbursementData(tranches)//
+                .interestType(LoanTestData.InterestType.DECLINING_BALANCE)//
+                .interestCalculationPeriodType(LoanTestData.InterestCalculationPeriodType.DAILY)//
+                .expectedDisbursementDate(disbursementDate)//
+                .submittedOnDate(disbursementDate)//
+                .transactionProcessingStrategyCode(repaymentStrategy)//
+                .collateral(collaterals)//
+                .charges(List.of())//
+                .maxOutstandingLoanBalance(new BigDecimal("36000"))//
+                .locale("en_GB")//
+                .dateFormat(LoanTestData.DATETIME_PATTERN));
     }
 
     private static LocalDate toLocalDate(Calendar calendar) {

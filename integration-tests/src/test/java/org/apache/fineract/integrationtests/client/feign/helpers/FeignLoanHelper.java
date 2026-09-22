@@ -18,19 +18,11 @@
  */
 package org.apache.fineract.integrationtests.client.feign.helpers;
 
+import static org.apache.fineract.client.feign.util.FeignCalls.executeVoid;
 import static org.apache.fineract.client.feign.util.FeignCalls.fail;
 import static org.apache.fineract.client.feign.util.FeignCalls.ok;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import io.restassured.builder.RequestSpecBuilder;
-import io.restassured.builder.ResponseSpecBuilder;
-import io.restassured.http.ContentType;
-import io.restassured.specification.RequestSpecification;
-import io.restassured.specification.ResponseSpecification;
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.fineract.client.feign.FineractFeignClient;
@@ -41,19 +33,27 @@ import org.apache.fineract.client.models.CommandProcessingResult;
 import org.apache.fineract.client.models.DeleteLoansLoanIdChargesChargeIdResponse;
 import org.apache.fineract.client.models.DeleteLoansLoanIdResponse;
 import org.apache.fineract.client.models.DisbursementDetail;
+import org.apache.fineract.client.models.GetDelinquencyActionsResponse;
 import org.apache.fineract.client.models.GetDelinquencyTagHistoryResponse;
 import org.apache.fineract.client.models.GetLoanProductsProductIdResponse;
+import org.apache.fineract.client.models.GetLoanProductsTemplateResponse;
 import org.apache.fineract.client.models.GetLoanRescheduleRequestResponse;
 import org.apache.fineract.client.models.GetLoansApprovalTemplateResponse;
 import org.apache.fineract.client.models.GetLoansLoanIdChargesChargeIdResponse;
 import org.apache.fineract.client.models.GetLoansLoanIdChargesTemplateResponse;
 import org.apache.fineract.client.models.GetLoansLoanIdResponse;
+import org.apache.fineract.client.models.GetLoansResponse;
+import org.apache.fineract.client.models.GetPostDatedChecks;
+import org.apache.fineract.client.models.InterestPauseRequestDto;
+import org.apache.fineract.client.models.InterestPauseResponseDto;
 import org.apache.fineract.client.models.LoanApprovedAmountHistoryData;
 import org.apache.fineract.client.models.PostAddAndDeleteDisbursementDetailRequest;
 import org.apache.fineract.client.models.PostCreateRescheduleLoansRequest;
 import org.apache.fineract.client.models.PostCreateRescheduleLoansResponse;
 import org.apache.fineract.client.models.PostLoanProductsRequest;
 import org.apache.fineract.client.models.PostLoanProductsResponse;
+import org.apache.fineract.client.models.PostLoansDelinquencyActionRequest;
+import org.apache.fineract.client.models.PostLoansDelinquencyActionResponse;
 import org.apache.fineract.client.models.PostLoansLoanIdChargesChargeIdRequest;
 import org.apache.fineract.client.models.PostLoansLoanIdChargesChargeIdResponse;
 import org.apache.fineract.client.models.PostLoansLoanIdChargesRequest;
@@ -75,25 +75,52 @@ import org.apache.fineract.client.models.PutLoansAvailableDisbursementAmountRequ
 import org.apache.fineract.client.models.PutLoansAvailableDisbursementAmountResponse;
 import org.apache.fineract.client.models.PutLoansLoanIdChargesChargeIdRequest;
 import org.apache.fineract.client.models.PutLoansLoanIdChargesChargeIdResponse;
+import org.apache.fineract.client.models.PutLoansLoanIdDisbursementsDisbursementIdRequest;
 import org.apache.fineract.client.models.PutLoansLoanIdRequest;
 import org.apache.fineract.client.models.PutLoansLoanIdResponse;
-import org.apache.fineract.integrationtests.client.feign.modules.LoanRequestBuilders;
 import org.apache.fineract.integrationtests.common.Utils;
 
 public class FeignLoanHelper {
 
     private static final String CREATE_LOAN_PRODUCT_URL = "/fineract-provider/api/v1/loanproducts?" + Utils.TENANT_IDENTIFIER;
-    private static final String APPLY_LOAN_URL = "/fineract-provider/api/v1/loans?" + Utils.TENANT_IDENTIFIER;
-    private static final String LOAN_STATE_TRANSITION_URL = "/fineract-provider/api/v1/loans/%d?" + Utils.TENANT_IDENTIFIER
-            + "&command=approve";
-    private static final String LOAN_DISBURSE_URL = "/fineract-provider/api/v1/loans/%d?" + Utils.TENANT_IDENTIFIER + "&command=disburse";
-    private static final String LOAN_DISBURSE_TO_SAVINGS_URL = "/fineract-provider/api/v1/loans/%d?" + Utils.TENANT_IDENTIFIER
-            + "&command=disburseToSavings";
 
     private final FineractFeignClient fineractClient;
 
     public FeignLoanHelper(FineractFeignClient fineractClient) {
         this.fineractClient = fineractClient;
+    }
+
+    public CommandProcessingResult createInterestPause(Long loanId, InterestPauseRequestDto request) {
+        return ok(() -> fineractClient.loanInterestPause().createLoanInterestPause(loanId, request));
+    }
+
+    public CommandProcessingResult createInterestPauseByExternalId(String loanExternalId, InterestPauseRequestDto request) {
+        return ok(() -> fineractClient.loanInterestPause().createLoanInterestPauseByExternalId(loanExternalId, request));
+    }
+
+    public List<InterestPauseResponseDto> retrieveInterestPauses(Long loanId) {
+        return ok(() -> fineractClient.loanInterestPause().retrieveAllLoanInterestPauses(loanId));
+    }
+
+    public List<InterestPauseResponseDto> retrieveInterestPausesByExternalId(String loanExternalId) {
+        return ok(() -> fineractClient.loanInterestPause().retrieveAllLoanInterestPausesByExternalId(loanExternalId));
+    }
+
+    public CommandProcessingResult updateInterestPause(Long loanId, Long variationId, InterestPauseRequestDto request) {
+        return ok(() -> fineractClient.loanInterestPause().updateLoanInterestPause(loanId, variationId, request));
+    }
+
+    public CommandProcessingResult updateInterestPauseByExternalId(String loanExternalId, Long variationId,
+            InterestPauseRequestDto request) {
+        return ok(() -> fineractClient.loanInterestPause().updateLoanInterestPauseByExternalId(loanExternalId, variationId, request));
+    }
+
+    public void deleteInterestPause(Long loanId, Long variationId) {
+        executeVoid(() -> fineractClient.loanInterestPause().deleteLoanInterestPause(loanId, variationId));
+    }
+
+    public void deleteInterestPauseByExternalId(String loanExternalId, Long variationId) {
+        executeVoid(() -> fineractClient.loanInterestPause().deleteLoanInterestPauseByExternalId(loanExternalId, variationId));
     }
 
     public PostLoanProductsResponse createSimpleLoanProduct() {
@@ -126,20 +153,6 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.loanProducts().createLoanProduct(request));
     }
 
-    /**
-     * WARNING: This method uses ObjectMapperFactory which silences unknown property errors. Do not use this method in
-     * tests expecting strict deserialization.
-     */
-    public Long createLoanProductFromJson(String loanProductJson) {
-        try {
-            String sanitizedJson = loanProductJson.replaceAll("(?<=\\d),(?=\\d{3}(?!\\d))", "");
-            PostLoanProductsRequest request = ObjectMapperFactory.getShared().readValue(sanitizedJson, PostLoanProductsRequest.class);
-            return createLoanProduct(request).getResourceId();
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new IllegalArgumentException("Invalid loan product json", e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     private <T> T extractErrorAttribute(CallFailedRuntimeException exception, String jsonAttributeToGetBack) {
         if (!(exception.getCause() instanceof org.apache.fineract.client.feign.FeignException feignException)) {
@@ -153,15 +166,9 @@ public class FeignLoanHelper {
         }
     }
 
-    public <T> T getLoanProductError(String loanProductJson, String jsonAttributeToGetBack) {
-        try {
-            String sanitizedJson = loanProductJson.replaceAll("(?<=\\d),(?=\\d{3}(?!\\d))", "");
-            PostLoanProductsRequest request = ObjectMapperFactory.getShared().readValue(sanitizedJson, PostLoanProductsRequest.class);
-            CallFailedRuntimeException ex = fail(() -> fineractClient.loanProducts().createLoanProduct(request));
-            return extractErrorAttribute(ex, jsonAttributeToGetBack);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
-            throw new IllegalArgumentException("Invalid loan product json", e);
-        }
+    public <T> T getLoanProductError(PostLoanProductsRequest request, String jsonAttributeToGetBack) {
+        CallFailedRuntimeException ex = fail(() -> fineractClient.loanProducts().createLoanProduct(request));
+        return extractErrorAttribute(ex, jsonAttributeToGetBack);
     }
 
     public CallFailedRuntimeException addLoanChargeExpectingError(Long loanId, PostLoansLoanIdChargesRequest request) {
@@ -172,13 +179,6 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.defaultApi().getAdvancedPaymentAllocationRulesOfLoan(loanId));
     }
 
-    // TODO: Rewrite to use fineract-client instead!
-    public Long applyForLoanFromJson(String loanApplicationJson) {
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        Integer loanId = Utils.performServerPost(jsonRequestSpec(), responseSpec, APPLY_LOAN_URL, loanApplicationJson, "loanId");
-        return loanId.longValue();
-    }
-
     public GetLoanProductsProductIdResponse retrieveLoanProduct(Long productId) {
         return ok(() -> fineractClient.loanProducts().retrieveOneLoanProduct(productId));
     }
@@ -187,24 +187,45 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.loanProducts().updateLoanProduct(productId, request));
     }
 
+    public GetLoanProductsTemplateResponse getLoanProductTemplate(Boolean isProductMixTemplate) {
+        return ok(() -> fineractClient.loanProducts().retrieveTemplateLoanProduct(isProductMixTemplate));
+    }
+
     public PostLoansResponse applyForLoan(PostLoansRequest request) {
         return ok(() -> fineractClient.loans().calculateOrSubmitLoanApplication(request, (String) null));
+    }
+
+    public PostLoansResponse calculateLoanSchedule(PostLoansRequest request) {
+        return ok(() -> fineractClient.loans().calculateOrSubmitLoanApplication(request, "calculateLoanSchedule"));
+    }
+
+    public GetLoansResponse retrieveAllLoans(String accountNumber, String associations, Long clientId) {
+        return ok(() -> fineractClient.loans().retrieveAllLoans(null, 0, 10, null, null, accountNumber, associations, clientId, null));
     }
 
     public PostLoansLoanIdResponse approveLoan(Long loanId, PostLoansLoanIdRequest request) {
         return ok(() -> fineractClient.loans().handleCommandsLoan(loanId, request, Map.of("command", "approve")));
     }
 
-    // TODO: Rewrite to use fineract-client instead!
-    public void approveLoanFromJson(Long loanId, String approveLoanJson) {
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        Utils.performServerPost(jsonRequestSpec(), responseSpec, LOAN_STATE_TRANSITION_URL.formatted(loanId), approveLoanJson, "");
+    public PostLoansDelinquencyActionResponse createLoanDelinquencyAction(Long loanId, String action, String startDate, String endDate) {
+        PostLoansDelinquencyActionRequest request = new PostLoansDelinquencyActionRequest().action(action).startDate(startDate)
+                .endDate(endDate).locale("en").dateFormat("dd MMMM yyyy");
+        return ok(() -> fineractClient.loans().createDelinquencyActionLoan(loanId, request));
     }
 
-    // TODO: Rewrite to use fineract-client instead!
-    public void disburseLoanFromJson(Long loanId, String disburseLoanJson) {
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        Utils.performServerPost(jsonRequestSpec(), responseSpec, LOAN_DISBURSE_URL.formatted(loanId), disburseLoanJson, "");
+    public PostLoansDelinquencyActionResponse createLoanDelinquencyAction(String loanExternalId, String action, String startDate,
+            String endDate) {
+        PostLoansDelinquencyActionRequest request = new PostLoansDelinquencyActionRequest().action(action).startDate(startDate)
+                .endDate(endDate).locale("en").dateFormat("dd MMMM yyyy");
+        return ok(() -> fineractClient.loans().createDelinquencyActionLoanByExternalId(loanExternalId, request));
+    }
+
+    public List<GetDelinquencyActionsResponse> getLoanDelinquencyActions(Long loanId) {
+        return ok(() -> fineractClient.loans().retrieveDelinquencyActionsLoan(loanId));
+    }
+
+    public List<GetDelinquencyActionsResponse> getLoanDelinquencyActions(String loanExternalId) {
+        return ok(() -> fineractClient.loans().retrieveDelinquencyActionsLoanByExternalId(loanExternalId));
     }
 
     public PostLoansLoanIdResponse disburseLoan(Long loanId, PostLoansLoanIdRequest request) {
@@ -212,7 +233,7 @@ public class FeignLoanHelper {
     }
 
     public PostLoansLoanIdResponse disburseToSavings(Long loanId, PostLoansLoanIdRequest request) {
-        return disburseToSavingsFromJson(loanId, toDisburseToSavingsJson(request));
+        return ok(() -> fineractClient.loans().handleCommandsLoan(loanId, request, Map.of("command", "disburseToSavings")));
     }
 
     public PostLoansLoanIdResponse rejectLoanByExternalId(String loanExternalId, PostLoansLoanIdRequest request) {
@@ -238,6 +259,10 @@ public class FeignLoanHelper {
     public PutLoansLoanIdResponse markAsFraud(Long loanId, boolean fraud) {
         return ok(() -> fineractClient.loans().updateLoanApplication(loanId, new PutLoansLoanIdRequest().fraud(fraud),
                 Map.of("command", "markAsFraud")));
+    }
+
+    public PutLoansLoanIdResponse modifyLoanApplication(Long loanId, String command, PutLoansLoanIdRequest request) {
+        return ok(() -> fineractClient.loans().updateLoanApplication(loanId, request, command));
     }
 
     public PostLoansLoanIdTransactionsResponse closeLoan(Long loanId, PostLoansLoanIdTransactionsRequest request) {
@@ -267,6 +292,11 @@ public class FeignLoanHelper {
     public GetLoansLoanIdResponse getLoanDetails(Long loanId) {
         return ok(() -> fineractClient.loans().retrieveOneLoan(loanId,
                 Map.of("associations", "all", "exclude", "guarantors,futureSchedule")));
+    }
+
+    /** Retrieves the loan with an explicit {@code associations} list, e.g. to include {@code futureSchedule}. */
+    public GetLoansLoanIdResponse getLoanDetails(Long loanId, String associations) {
+        return ok(() -> fineractClient.loans().retrieveOneLoan(loanId, Map.of("associations", associations)));
     }
 
     public GetLoansLoanIdResponse getLoanDetailsByExternalId(String loanExternalId) {
@@ -370,6 +400,12 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.loanCharges().createOrPayLoanCharge(loanId, request, (String) null));
     }
 
+    public PostLoansLoanIdChargesResponse deactivateOverdueLoanCharges(Long loanId, String fromDueDate) {
+        PostLoansLoanIdChargesRequest request = new PostLoansLoanIdChargesRequest().dueDate(fromDueDate).dateFormat("dd MMMM yyyy")
+                .locale("en");
+        return ok(() -> fineractClient.loanCharges().createOrPayLoanCharge(loanId, request, "deactivateOverdue"));
+    }
+
     public List<GetLoansLoanIdChargesChargeIdResponse> getLoanCharges(Long loanId) {
         return ok(() -> fineractClient.loanCharges().retrieveAllLoanCharges(loanId));
     }
@@ -439,8 +475,21 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.loanDisbursementDetails().retriveDetail(loanId, disbursementId));
     }
 
-    public CommandProcessingResult updateDisbursementDate(Long loanId, Long disbursementId, String body) {
-        return ok(() -> fineractClient.loanDisbursementDetails().updateDisbursementDate(loanId, disbursementId, body));
+    public CommandProcessingResult updateDisbursementDate(Long loanId, Long disbursementId,
+            PutLoansLoanIdDisbursementsDisbursementIdRequest request) {
+        return ok(() -> fineractClient.loanDisbursementDetails().updateDisbursementDate(loanId, disbursementId, request));
+    }
+
+    /** Restates the expected date and principal of one tranche of a multi-disbursement loan. */
+    public CommandProcessingResult updateDisbursementDate(Long loanId, Long disbursementId, String approvedLoanAmount,
+            String expectedDisbursementDate, String updatedExpectedDisbursementDate, String updatedPrincipal) {
+        return updateDisbursementDate(loanId, disbursementId, new PutLoansLoanIdDisbursementsDisbursementIdRequest()//
+                .locale("en")//
+                .dateFormat("dd MMMM yyyy")//
+                .approvedLoanAmount(new BigDecimal(approvedLoanAmount))//
+                .expectedDisbursementDate(expectedDisbursementDate)//
+                .updatedExpectedDisbursementDate(updatedExpectedDisbursementDate)//
+                .updatedPrincipal(new BigDecimal(updatedPrincipal)));
     }
 
     public PutLoansAvailableDisbursementAmountResponse modifyAvailableDisbursementAmount(Long loanId,
@@ -449,79 +498,11 @@ public class FeignLoanHelper {
     }
 
     public PostCreateRescheduleLoansResponse createRescheduleRequest(PostCreateRescheduleLoansRequest request) {
-        if (request instanceof LoanRequestBuilders.RescheduleRequestWithRecalculateInterest recalcRequest
-                && Boolean.TRUE.equals(recalcRequest.getRecalculateInterest())) {
-            return new PostCreateRescheduleLoansResponse().resourceId(createRescheduleRequestFromJson(toRescheduleJson(request, true)));
-        }
         return ok(() -> fineractClient.rescheduleLoans().createRescheduleLoan(request));
     }
 
-    @SuppressWarnings("unchecked")
-    public HashMap<String, Object> createRescheduleRequestWithFullResponse(PostCreateRescheduleLoansRequest request,
-            int expectedStatusCode) {
-        String json = toRescheduleJson(request,
-                request instanceof LoanRequestBuilders.RescheduleRequestWithRecalculateInterest recalcRequest
-                        && Boolean.TRUE.equals(recalcRequest.getRecalculateInterest()));
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(expectedStatusCode).build();
-        return Utils.performServerPost(jsonRequestSpec(), responseSpec,
-                "/fineract-provider/api/v1/rescheduleloans?" + Utils.TENANT_IDENTIFIER, json, "");
-    }
-
-    private String toRescheduleJson(PostCreateRescheduleLoansRequest request, boolean recalculateInterest) {
-        ObjectMapper mapper = ObjectMapperFactory.getShared();
-        ObjectNode body = mapper.valueToTree(request);
-        if (recalculateInterest) {
-            body.put("recalculateInterest", true);
-        }
-        try {
-            return mapper.writeValueAsString(body);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize reschedule request", e);
-        }
-    }
-
-    // TODO: Rewrite to use fineract-client instead!
-    private Long createRescheduleRequestFromJson(String json) {
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        Integer resourceId = Utils.performServerPost(jsonRequestSpec(), responseSpec,
-                "/fineract-provider/api/v1/rescheduleloans?" + Utils.TENANT_IDENTIFIER, json, "resourceId");
-        return resourceId.longValue();
-    }
-
-    // TODO: Rewrite to use fineract-client instead!
-    private static RequestSpecification jsonRequestSpec() {
-        Utils.initializeRESTAssured();
-        return new RequestSpecBuilder().setContentType(ContentType.JSON)
-                .addHeader("Authorization", "Basic " + Utils.loginIntoServerAndGetBase64EncodedAuthenticationKey())
-                .addHeader("Fineract-Platform-TenantId", "default").build();
-    }
-
-    // TODO: Rewrite to use fineract-client instead!
-    private PostLoansLoanIdResponse disburseToSavingsFromJson(Long loanId, String disburseJson) {
-        ResponseSpecification responseSpec = new ResponseSpecBuilder().expectStatusCode(200).build();
-        String response = Utils.performServerPost(jsonRequestSpec(), responseSpec, LOAN_DISBURSE_TO_SAVINGS_URL.formatted(loanId),
-                disburseJson, null);
-        try {
-            return ObjectMapperFactory.getShared().readValue(response, PostLoansLoanIdResponse.class);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to parse disburseToSavings response", e);
-        }
-    }
-
-    private static String toDisburseToSavingsJson(PostLoansLoanIdRequest request) {
-        ObjectMapper mapper = ObjectMapperFactory.getShared();
-        ObjectNode body = mapper.valueToTree(request);
-        if (request.getTransactionAmount() != null && !body.has("netDisbursalAmount")) {
-            body.put("netDisbursalAmount", request.getTransactionAmount().toPlainString());
-        }
-        if (!body.has("note")) {
-            body.put("note", "DISBURSE NOTE");
-        }
-        try {
-            return mapper.writeValueAsString(body);
-        } catch (JsonProcessingException e) {
-            throw new IllegalStateException("Failed to serialize disburseToSavings request", e);
-        }
+    public CallFailedRuntimeException createRescheduleRequestExpectingError(PostCreateRescheduleLoansRequest request) {
+        return fail(() -> fineractClient.rescheduleLoans().createRescheduleLoan(request));
     }
 
     public PostUpdateRescheduleLoansResponse approveRescheduleRequest(Long scheduleId, PostUpdateRescheduleLoansRequest request) {
@@ -610,6 +591,12 @@ public class FeignLoanHelper {
         return ok(() -> fineractClient.loans().handleCommandsLoanByExternalId(loanExternalId, request, "unassignLoanOfficer"));
     }
 
+    /** Recovers the outstanding balance of a written-off or overdue loan from its guarantors' on-hold funds. */
+    public PostLoansLoanIdResponse recoverGuarantees(Long loanId) {
+        return ok(() -> fineractClient.loans().handleCommandsLoan(loanId, new PostLoansLoanIdRequest(),
+                Map.of("command", "recoverGuarantees")));
+    }
+
     public PostLoansLoanIdResponse recoverGuaranteesLoan(String loanExternalId, PostLoansLoanIdRequest request) {
         return recoverGuaranteeByExternalId(loanExternalId, request);
     }
@@ -636,6 +623,10 @@ public class FeignLoanHelper {
 
     public List<GetDelinquencyTagHistoryResponse> getLoanDelinquencyTags(String loanExternalId) {
         return ok(() -> fineractClient.loans().retrieveDelinquencyTagHistoryLoanByExternalId(loanExternalId));
+    }
+
+    public List<GetDelinquencyTagHistoryResponse> getLoanDelinquencyTags(Long loanId) {
+        return ok(() -> fineractClient.loans().retrieveDelinquencyTagHistoryLoan(loanId));
     }
 
     public PostLoansLoanIdChargesResponse addLoanCharge(String loanExternalId, PostLoansLoanIdChargesRequest request) {
@@ -750,4 +741,12 @@ public class FeignLoanHelper {
                 .locale("en")//
                 .dateFormat("dd MMMM yyyy");
     }
+
+    /**
+     * Returns the post dated check backing the given repayment installment of the loan.
+     */
+    public GetPostDatedChecks getPostDatedCheck(Long loanId, Integer installmentId) {
+        return ok(() -> fineractClient.repaymentWithPostDatedChecks().getPostDatedCheck(installmentId, loanId));
+    }
+
 }

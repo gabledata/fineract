@@ -34,6 +34,10 @@ import org.apache.fineract.infrastructure.core.domain.ExternalId;
 import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRuleException;
 import org.apache.fineract.infrastructure.core.service.DateUtils;
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
+import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.loan.WorkingCapitalLoanChargeOffBusinessEvent;
+import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.loan.WorkingCapitalLoanUndoChargeOffBusinessEvent;
+import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.transaction.WorkingCapitalLoanChargeOffTransactionBusinessEvent;
+import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.infrastructure.security.service.PlatformSecurityContext;
 import org.apache.fineract.portfolio.workingcapitalloan.WorkingCapitalLoanConstants;
 import org.apache.fineract.portfolio.workingcapitalloan.accounting.WorkingCapitalLoanAccountingProcessor;
@@ -70,6 +74,9 @@ public class WorkingCapitalLoanChargeOffWriteServiceImpl implements WorkingCapit
     private final CodeValueRepositoryWrapper codeValueRepository;
     private final ExternalIdFactory externalIdFactory;
     private final WorkingCapitalLoanAccountingProcessor accountingProcessor;
+    private final BusinessEventNotifierService businessEventNotifierService;
+    private final WorkingCapitalLoanDiscountFeeAmortizationService discountFeeAmortizationService;
+    private final WorkingCapitalLoanAdjustTransactionEventPublisher adjustTransactionEventPublisher;
 
     @Transactional
     @Override
@@ -114,11 +121,17 @@ public class WorkingCapitalLoanChargeOffWriteServiceImpl implements WorkingCapit
         loan.markAsChargedOff(transactionDate, currentUser, chargeOffReason);
         this.loanRepository.saveAndFlush(loan);
 
+        this.businessEventNotifierService.notifyPostBusinessEvent(new WorkingCapitalLoanChargeOffBusinessEvent(loan));
+        this.businessEventNotifierService
+                .notifyPostBusinessEvent(new WorkingCapitalLoanChargeOffTransactionBusinessEvent(chargeOffTransaction, loan.getId()));
+
         // Post charge-off journal entries: write off the outstanding receivables against charge-off expense / income
         // reversal. No portfolio or schedule impact -- pure accounting tag.
         if (loan.getLoanProduct().getAccountingRule().isAccrualWithDeferredRevenueAmortization()) {
             this.accountingProcessor.postJournalEntries(loan, chargeOffTransaction, allocation, loan.isChargedOff());
         }
+
+        this.discountFeeAmortizationService.processFinalDiscountFeeAmortization(loan, chargeOffTransaction);
 
         final Map<String, Object> changes = new LinkedHashMap<>();
         changes.put(WorkingCapitalLoanConstants.transactionDateParamName, transactionDate);
@@ -151,6 +164,8 @@ public class WorkingCapitalLoanChargeOffWriteServiceImpl implements WorkingCapit
                 .orElseThrow(() -> new GeneralPlatformDomainRuleException("error.msg.wc.loan.charge.off.transaction.not.found",
                         "No active charge-off transaction found for loan " + loanId, loanId));
 
+        this.discountFeeAmortizationService.undoFinalDiscountFeeAmortization(loan, chargeOffTransaction);
+
         final ExternalId reversalExternalId = this.externalIdFactory
                 .create(command.stringValueOfParameterNamedAllowingNull(WorkingCapitalLoanConstants.reversalExternalIdParamName));
         chargeOffTransaction.setReversed(true);
@@ -160,6 +175,9 @@ public class WorkingCapitalLoanChargeOffWriteServiceImpl implements WorkingCapit
 
         loan.liftChargeOff();
         this.loanRepository.saveAndFlush(loan);
+
+        this.businessEventNotifierService.notifyPostBusinessEvent(new WorkingCapitalLoanUndoChargeOffBusinessEvent(loan));
+        this.adjustTransactionEventPublisher.publishReversal(loan.getId(), chargeOffTransaction);
 
         // Reverse the charge-off journal entries. No schedule reprocessing -- pure tag.
         if (loan.getLoanProduct().getAccountingRule().isAccrualWithDeferredRevenueAmortization()) {

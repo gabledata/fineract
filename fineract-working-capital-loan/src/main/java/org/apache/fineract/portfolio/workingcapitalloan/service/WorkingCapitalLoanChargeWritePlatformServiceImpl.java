@@ -39,10 +39,10 @@ import org.apache.fineract.infrastructure.core.exception.GeneralPlatformDomainRu
 import org.apache.fineract.infrastructure.core.service.ExternalIdFactory;
 import org.apache.fineract.infrastructure.core.service.MathUtil;
 import org.apache.fineract.infrastructure.core.service.ThreadLocalContextUtil;
+import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.charge.WorkingCapitalLoanAddChargeBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.loan.WorkingCapitalLoanBalanceChangedBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.loan.WorkingCapitalLoanStatusChangedBusinessEvent;
-import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.transaction.WorkingCapitalLoanChargeAdjustmentPostBusinessEvent;
-import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.transaction.WorkingCapitalLoanChargeAdjustmentPreBusinessEvent;
+import org.apache.fineract.infrastructure.event.business.domain.workingcapitalloan.transaction.WorkingCapitalLoanChargeAdjustmentTransactionBusinessEvent;
 import org.apache.fineract.infrastructure.event.business.service.BusinessEventNotifierService;
 import org.apache.fineract.organisation.monetary.domain.MoneyHelper;
 import org.apache.fineract.portfolio.charge.domain.Charge;
@@ -154,7 +154,12 @@ public class WorkingCapitalLoanChargeWritePlatformServiceImpl implements Working
         }
 
         chargeAccrualService.processOnChargeAdded(loan, loanCharge);
+        // EOD mode does not accrue on add. A charge added to an already overpaid/closed loan may leave the account
+        // overpaid or closed again after overpayment settlement, so COB will never see it — accelerate any pending
+        // accrual here (no-op while the loan is still active; idempotent if real-time already posted).
+        chargeAccrualService.accrueOnClosure(loan, ThreadLocalContextUtil.getBusinessDate());
 
+        businessEventNotifierService.notifyPostBusinessEvent(new WorkingCapitalLoanAddChargeBusinessEvent(loanCharge));
         notifyBalanceChanged(loan);
         notifyStatusChanged(loan, statusBeforeCharge);
 
@@ -299,13 +304,13 @@ public class WorkingCapitalLoanChargeWritePlatformServiceImpl implements Working
         if (MathUtil.isGreaterThanZero(balance.getTotalOutstanding())) {
             // An outstanding obligation appeared: a closed / overpaid loan reopens; an active loan stays active.
             if (statusBeforeCharge.isClosedObligationsMet() || statusBeforeCharge.isOverpaid()) {
-                stateMachine.transition(WorkingCapitalLoanEvent.LOAN_REOPENED, loan);
+                stateMachine.transition(WorkingCapitalLoanEvent.LOAN_REOPENED, loan, chargeDueDate);
             }
             loan.setMaturedOnDate(chargeDueDate);
             generateDelinquencyAndBreachPeriods(loan, chargeDueDate);
         } else if (statusBeforeCharge.isOverpaid()) {
             // The overpayment exactly settled the charge: the loan closes with obligations met.
-            stateMachine.transition(WorkingCapitalLoanEvent.LOAN_CREDIT_BALANCE_REFUND_IN_FULL, loan);
+            stateMachine.transition(WorkingCapitalLoanEvent.LOAN_CREDIT_BALANCE_REFUND_IN_FULL, loan, chargeDueDate);
             loan.setMaturedOnDate(chargeDueDate);
         }
     }
@@ -354,9 +359,6 @@ public class WorkingCapitalLoanChargeWritePlatformServiceImpl implements Working
         final WorkingCapitalLoanTransaction adjustmentTx = WorkingCapitalLoanTransaction.chargeAdjustment(loan, externalId, amount,
                 transactionDate, paymentDetail);
 
-        businessEventNotifierService
-                .notifyPreBusinessEvent(new WorkingCapitalLoanChargeAdjustmentPreBusinessEvent(adjustmentTx, loan.getId()));
-
         final WorkingCapitalLoanTransactionRelation relation = WorkingCapitalLoanTransactionRelation.linkToCharge(adjustmentTx, wcCharge,
                 LoanTransactionRelationTypeEnum.CHARGE_ADJUSTMENT);
         adjustmentTx.getLoanTransactionRelations().add(relation);
@@ -374,7 +376,7 @@ public class WorkingCapitalLoanChargeWritePlatformServiceImpl implements Working
         }
 
         businessEventNotifierService
-                .notifyPostBusinessEvent(new WorkingCapitalLoanChargeAdjustmentPostBusinessEvent(adjustmentTx, loan.getId()));
+                .notifyPostBusinessEvent(new WorkingCapitalLoanChargeAdjustmentTransactionBusinessEvent(adjustmentTx, loan.getId()));
 
         workingCapitalLoanRepository.saveAndFlush(loan);
         notifyBalanceChanged(loan);
@@ -395,8 +397,7 @@ public class WorkingCapitalLoanChargeWritePlatformServiceImpl implements Working
 
     private void chargeAdjustmentEntranceValidation(final WorkingCapitalLoan loan, final WorkingCapitalLoanCharge wcCharge,
             final BigDecimal amount) {
-        if (loan.getLoanStatus() != LoanStatus.ACTIVE && loan.getLoanStatus() != LoanStatus.CLOSED_OBLIGATIONS_MET
-                && loan.getLoanStatus() != LoanStatus.OVERPAID) {
+        if (!loan.isOpen() && !loan.isClosedObligationsMet() && !loan.isOverpaid()) {
             throw new WorkingCapitalLoanChargeAdjustmentException("wc.loan.charge.adjustment.invalid.status",
                     "Adjustment is not supported for the status of " + loan.getLoanStatus());
         }
